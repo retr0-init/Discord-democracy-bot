@@ -7,10 +7,11 @@
 #	python311Packages.psycopg2
 	python311Packages.numpy
 #	postgresql
-	python311Packages.aiomysql
-	python311Packages.pymysql
-	python311Packages.mysql-connector
+#	python311Packages.aiomysql
+#	python311Packages.pymysql
+#	python311Packages.mysql-connector
 	python311Packages.sqlalchemy
-	mysql
+	python311Packages.aiosqlite
+#	mysql
     ];
 }
