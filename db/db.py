@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from model import User, Vote, Case, Punishment
 
 '''TODO
-Change this to sqlalchemy with sqllite database
+- Change this to sqlalchemy with sqllite database
+- Consider pushing the data insertion and request to a queue to avoid implicit IO
+   AsyncSession? https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html
 '''
 async def create_db(loop):
     conn = await aiomysql.connect(host='127.0.0.1', port=3306,
