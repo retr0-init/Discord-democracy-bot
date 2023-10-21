@@ -16,3 +16,18 @@ class PunishmentTypeEnum(Enum):
     Jailed                  = 0
     Kicked                  = 1
     Disfranchise            = 2
+
+
+class CaseStepEnum(Enum):
+    First                   = 0
+    Second                  = 1
+
+
+class CaseWinnerEnum(Enum):
+    Appeallees              = 0
+    Appeallors              = 1
+
+
+class PunishmentAuthorityEnum(Enum):
+    Admin                   = 0
+    Public                  = 1
