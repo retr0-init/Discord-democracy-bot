@@ -42,6 +42,10 @@ class BotDemocracyCog(commands.Cog):
     async def on_monitorLoop_cancel(self):
         return
 
+    @discord.event
+    async def on_reaction_add(self):
+        # do something
+
 
 if __name__ == "__main__":
     pass

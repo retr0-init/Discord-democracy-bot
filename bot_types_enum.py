@@ -26,6 +26,7 @@ class CaseStepEnum(Enum):
 class CaseWinnerEnum(Enum):
     Appeallees              = 0
     Appeallors              = 1
+    NotDetermined           = 2
 
 
 class PunishmentAuthorityEnum(Enum):

@@ -57,11 +57,11 @@ class User(Base):
     __table_name__ = "User"
 
     id:             Mapped[int]                 = mapped_column(primary_key=True)
-    join_date:      Mapped[datetime.datetime)   = mapped_column(DateTime)
+    join_date:      Mapped[datetime.datetime]   = mapped_column(DateTime)
     # Get the discord role object with discord.utils.get() and these role id's
-    roles                                       = mapped_column(ARRAY(Integer))
-    punishments:    Mapped[List["Punishment"]]  = relationship(back_populates="User")
-    cases:          Mapped[List["Case"]]        = relationship(back_populates="Case")
+    roles:          Mapped[Optional[List[int]]] = mapped_column(ARRAY(Integer))
+    punishments:    Mapped[List[Punishment]]    = relationship(back_populates="User")
+    cases:          Mapped[List[Case]]          = relationship(back_populates="Case")
 
 class Vote(Base):
     __table_name__ = "Vote"
@@ -70,13 +70,14 @@ class Vote(Base):
     poll_type:      Mapped[enum.Enum]           = mapped_column(Enum(VoteTypeEnum))
     created:        Mapped[datetime.datetime]   = mapped_column(DateTime)
     expired:        Mapped[datetime.datetime]   = mapped_column(DateTime)
+    message_id:     Mapped[int]                 = mapped_column(Integer)
     jump_url:       Mapped[str]                 = mapped_column(String(200))
     finished:       Mapped[bool]                = mapped_column(Boolean)
     voter_limited:  Mapped[bool]                = mapped_column(Boolean)
-    voters:         Mapped[Optional[List["User"]]]      = mapped_column(ForeignKey("User.id"), nullable=True)
-    agree:          Mapped[List["User"]]        = mapped_column(ForeignKey("User.id")) 
-    against:        Mapped[List["User"]]        = mapped_column(ForeignKey("User.id")) 
-    waiver:         Mapped[List["User"]]        = mapped_column(ForeignKey("User.id"))
+    voters:         Mapped[Optional[List[User]]]        = mapped_column(ForeignKey("User.id"), nullable=True)
+    agree:          Mapped[List[User]]          = mapped_column(ForeignKey("User.id"), nullable=True) 
+    against:        Mapped[List[User]]          = mapped_column(ForeignKey("User.id"), nullable=True) 
+    waiver:         Mapped[List[User]]          = mapped_column(ForeignKey("User.id"), nullable=True)
 
 
 class Case(Base):
@@ -85,13 +86,15 @@ class Case(Base):
     id:             Mapped[uuid.UUID]           = mapped_column(Uuid, primary_key=True)
     created:        Mapped[datetime.datetime]   = mapped_column(DateTime)
     closed:         Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
-    judges:         Mapped[List["User"]]        = mapped_column(ForeignKey("User.id"))
-    appeallees:     Mapped[List["User"]]        = mapped_column(Foreignkey("User.id"))
-    appeallors:     Mapped[List["User"]]        = mapped_column(Foreignkey("User.id"))
+    message_id:     Mapped[int]                 = mapped_column(Integer)
+    jump_url:       Mapped[str]                 = mapped_column(String(200))
+    judges:         Mapped[List[User]]          = mapped_column(ForeignKey("User.id"))
+    appeallees:     Mapped[List[User]]          = mapped_column(Foreignkey("User.id"))
+    appeallors:     Mapped[List[User]]          = mapped_column(Foreignkey("User.id"))
     step:           Mapped[enum.Enum]           = mapped_column(Enum(CaseStepEnum))
-    votes:          Mapped[Optional[List["Vote"]]]      = mapped_column(ForeignKey("Vote.id"), nullable=True)
+    votes:          Mapped[Optional[List[Vote]]]        = mapped_column(ForeignKey("Vote.id"), nullable=True)
     completed:      Mapped[bool]                = mapped_column(Boolean)
-    punishment:     Mapped["Punishment"]        = mapped_column(ForeignKey("Punishment.id"))
+    punishment:     Mapped[Punishment]          = mapped_column(ForeignKey("Punishment.id"))
     winner:         Mapped[enum.Enum]           = mapped_column(Enum(CaseWinnerEnum))
 
 class Punishment(Base):
@@ -104,7 +107,8 @@ class Punishment(Base):
     applied:        Mapped[bool]                = mapped_column(Boolean)
     punish_type:    Mapped[enum.Enum]           = mapped_column(Enum(PunishmentTypeEnum))
     authority:      Mapped[enum.Enum]           = mapped_column(Enum(PunishmentAuthorityEnum))
-    issued_by:      Mapped[Optional[List["User"]]]      = mapped_column(ForeignKey("User.id"), nullable=True)
+    issued_by:      Mapped[Optional[List[User]]]        = mapped_column(ForeignKey("User.id"), nullable=True)
+    related_case:   Mapped[Optional[Case]]      = mapped_column(relationship(back_populates="Case"), nullable=True)
 
 class Metadata(Base):
     __table_name__ = "Metadata"
