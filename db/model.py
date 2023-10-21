@@ -48,6 +48,10 @@ class Base(AsyncAttrs, DeclaritiveBase):
 - Check how to store original Python object list as a table column
     - Type[Any] from typing?
 - Improvements optional: add 
+https://docs.sqlalchemy.org/en/20/core/type_basics.html
+https://docs.sqlalchemy.org/en/20/orm/declarative_tables.html
+https://docs.sqlalchemy.org/en/20/core/custom_types.html#sqlalchemy.types.TypeDecorator
+
 '''
 class User(Base):
     __table_name__ = "User"
