@@ -42,9 +42,51 @@ class BotDemocracyCog(commands.Cog):
     async def on_monitorLoop_cancel(self):
         return
 
-    @discord.event
-    async def on_reaction_add(self):
+    @commands.Cog.listener()
+    @commands.guild_only()
+    async def on_raw_reaction_add(self, reaction: discord.RawReactionActionEvent):
         # do something
+
+    @commands.Cog.listener()
+    @commands.guild_only()
+    async def on_raw_reaction_remove(self, reaction: discord.RawReactionActionEvent):
+        # do something
+
+    @commands.Cog.listener()
+    @commands.guild_only()
+    async def on_member_join(self, member: discord.Member):
+        guild = member.guild
+        if guild.system_channel is not None:
+            # Check the user in the database and apply the punishment if so
+            pass
+        pass
+
+    @commands.Cog.listener()
+    @commands.guild_only()
+    async def on_member_remove(self, member: discord.Member):
+        # Randomly select another member if the quit member is in a case
+        pass
+
+    @commands.Cog.listener()
+    @commands.guild_only()
+    async def on_member_update(self, member: discord.Member):
+        # When the role / nickname etc changed
+        pass
+
+    @commands.Cog.listener()
+    @commands.guild_only()
+    async def on_message(self, message: discord.Message):
+        message_author = message.author
+        if message_author.bot is False:
+            # Do something if the message is sent or created
+            pass
+
+    @commands.Cog.listener()
+    @commands.guild_only()
+    async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry):
+        # React if there is a new moderation action is taken
+        # Publish that into the "Management Affairs Publish" Channel
+        pass
 
 
 if __name__ == "__main__":

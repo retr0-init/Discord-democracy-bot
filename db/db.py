@@ -15,6 +15,9 @@ from bot_types_enum import VoteTypeEnum, CaseStepEnum, CaseWinnerEnum, Punishmen
 - [ ] Change this to sqlalchemy with sqllite database
 - [ ] Error handling for async database operations
 - [ ] Find whether there are more find functions needed
+    - [ ] "Upsert" instead of "insert"
+- [ ] Table creation if not exist
+- [ ] Table & field conflict resolve
 - [x] Consider pushing the data insertion and request to a queue to avoid implicit IO
    AsyncSession? https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html
 '''
