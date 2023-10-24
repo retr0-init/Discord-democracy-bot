@@ -3,6 +3,16 @@ from discord.ext import tasks, commands
 import datetime
 from uuid import uuid4
 
+'''References
+https://programtalk.com/vs4/python/yagomichalak/sloth-bot/main.py/
+'''
+
+bot = commands.Bot(command_prefix='d!', intents=discord.Intents.all(), help_command=None, case_insensitive=True)
+
+@bot.event
+async def on_ready():
+    print("Bot is ready!")
+
 class BotDemocracyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
