@@ -1,49 +1,80 @@
 import discord
 import traceback
 
-from typing import List, Optional
-from bot_types_enum import VoteTypeEnum, PunishmentTypeEnum, CaseStepEnum, CaseWinnerEnum, PunishmentAuthorityEnum
+import uuid
+import datetime
+from typing import List, Optional, Dict, Union
+from bot_types_enum import VoteTypeEnum, PunishmentTypeEnum, CaseStepEnum,
+                            CaseWinnerEnum, PunishmentAuthorityEnum, UIVotingButtonEnum
 
 
 '''TODO
 - [ ] Create the UI for election, court, normal voting, and moderation
 - [ ] UIElection needs to have choice filter based on previous selection
-- [ ] RoleSelect and ChannelSelect, specific selections
-    - [ ] Or use Select only and map the choice to the specific channel
-- [ ] UIVote needs to send the message to convert it to view. Need to check how to do it properly.
+- [x] Or use Select only and map the choice to the specific channel
+- [x] UIVote needs to send the message to convert it to view. Need to check how to do it properly.
 - [ ] UIVote manage vote according to the inputs and results
 '''
 
 
 class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
     #TODO Will the electable roles all be created individually?
+    '''
+    Choose the role and channel according to the literal option.
+    '''
 
     @discord.ui.select(
         cls = discord.ui.RoleSelect,
         options = [
-            discord.Role(), # Role Admin
-            discord.Role(), # Role Judge
-            discord.Role(), # Role Technical
-            discord.Role()  # Role Wardenry
+            discord.SelectOption(label="Admin",     value="Admin"),     # Role Admin
+            discord.SelectOption(label="Judge",     value="Judge"),     # Role Judge
+            discord.SelectOption(label="Technical", value="Technical"), # Role Technical
+            discord.SelectOption(label="Wardenry",  value="Wardenry")   # ardenry
         ],
         placeholder = "Please select the role you want to be elected"
     )
-    async def select_role(self, interaction: discord.Interaction, select_item: discord.RoleSelect):
+    async def select_role(self, interaction: discord.Interaction, select_item: discord.ui.Select):
+        selected_option : str = select_item.values[0]
+        selected_role : Optional[discord.Role] = None
+        if selected_option == "Admin":
+            # Need to get the Role ID of Admin
+        elif selected_option == "Judge":
+            pass
+        elif selected_option == "Technical":
+            pass
+        elif selected_option == "Wardenrey":
+            pass
+        else:
+            # Handle error selection
         pass
 
     @discord.ui.select(
         cls = discord.ui.ChannelSelect,
         options = [
-            discord.Channel(),  # Channel Left
-            discord.Channel(),  # Channel Right
-            discord.Channel(),  # Channel Anarchy
-            discord.Channel(),  # Channel Mild
-            discord.Channel()   # Channel Extreme
+            discord.SelectOption(label="Left",      value="Left"),      # Channel Left
+            discord.SelectOption(label="Right",     value="Right"),     # Channel Left
+            discord.SelectOption(label="Anarchy",   value="Anarchy"),   # Channel Left
+            discord.SelectOption(label="Mild",      value="Mild"),      # Channel Left
+            discord.SelectOption(label="Extreme",   value="Extreme")    # Channel Left
         ],
         placeholder = "Please select the channel where you will be elected as an admin",
         channel_types = [discord.ChannelType.text]
     )
-    async def select_channel(self, interaction: discord.Interaction, select_item: discord.ChannelSelect):
+    async def select_channel(self, interaction: discord.Interaction, select_item: discord.ui.Select):
+        selected_option : str = select_item.values[0]
+        selected_channel : Optional[discord.Channel] = None
+        if selected_option == "Left":
+            # Need to get the role ID of Left
+        elif selected_option == "Right":
+            pass
+        elif selected_option == "Anarchy":
+            pass
+        elif selected_option == "Mild":
+            pass
+        elif selected_option == "Extreme":
+            pass
+        else:
+            # Handle the error selection
         pass
 
     election_abstract = discord.ui.TextInput(
@@ -87,7 +118,33 @@ class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
         traceback.print_exception(type(error), error, error.__traceback__)
     pass
 
+class UIVotingButton(discord.ui.Button):
+    def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, row: Optional[int] = None):
+        match button_type:
+            case UIVotingButtonEnum.Agree:
+                style = discord.ButtonStyle.success
+            case UIVotingButtonEnum.Against:
+                style = discord.ButtonStyle.danger
+            case UIVotingButtonEnum.Waiver:
+                style = discord.ButtonStyle.primary
+            case _:
+                e = Exception("The voting button type does not match")
+                traceback.print_exception(type(e), e, e.__traceback__)
+                style = discord.ButtonStyle.grey
+        super().__init__(label=label, style=style, custom_id=custom_id, row=row)
+
+    async def callback(self, interaction: discord.Interaction):
+        assert self.view is not None
+        view: UIVoting = self.view
+        buttons = view.buttons
+        vote_type: VoteTypeEnum = view.vote_type
+        user: Union[discord.User, discord.Member] = interaction.user
+        # TODO check user permission with the database check
+        # TODO disable the button for this interaction user
+
 class UIVoting(discord.ui.View):
+    '''
+    Pass the title, body and vote_type to the command reply, and pass the message object to this class
     async def __new__(self, vote_title: str, vote_body: str, options: List[str], vote_type: VoteTypeEnum, timeout: float):
         match vote_type:
             case VoteTypeEnum.LegislationConstitution:
@@ -123,17 +180,36 @@ class UIVoting(discord.ui.View):
             description = f"{vote_body}",
             colour = colour
         )
-        '''Send the message and convert it to self
+        #Send the message and convert it to self
         message = await ctx.send_message(embed=msg)
         return discord.ui.View.from_message(message, timeout=timeout)
-        '''
+    '''
+    
+    id: uuid.UUID
+    created: datetime.datetime
+    expired: datetime.datetime
+    finished: bool
+    vote_type: VoteTypeEnum
+    voter_limited: bool
+    voters: Optional[List[Union[discord.User, discord.Member]]]
+    agree: List[Union[discord.User, discord.Member]]
+    against: List[Union[discord.User, discord.Member]]
+    waiver: List[Union[discord.User, discord.Member]]
+    jump_url: str
+    buttons: List[UIVotingButton] = []
 
-    async def __init__(self, vote_title: str, vote_body: str, options: List[str], vote_type: VoteTypeEnum, timeout: float):
+    async def __new__(self, message: discord.Message, vote_type: VoteTypeEnum, timeout: float):
+        return discord.ui.View.from_message(message, timeout=timeout)
+
+    async def __init__(self, message: discord.Messgae, vote_type: VoteTypeEnum, timeout: float):
         # super().__init__(timeout=timeout)
         self.vote_type : VoteTypeEnum = vote_type
-        self.vote_title : str = vote_title
-        self.vote_body : str = vote_body
-        self.vote_options : str = options
+
+        for vote_option in UIVotingButtonEnum:
+            label = vote_option.value
+            button = UIVotingButton(label=label, button_type=vote_option, custom_id=label, row=2)
+            self.buttons.append(button)
+            self.add_item(button)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         pass

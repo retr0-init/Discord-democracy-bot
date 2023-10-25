@@ -32,3 +32,9 @@ class CaseWinnerEnum(Enum):
 class PunishmentAuthorityEnum(Enum):
     Admin                   = 0
     Public                  = 1
+
+
+class UIVotingButtonEnum(Enum):
+    Agree                   = "Agree"
+    Waiver                  = "Waiver"
+    Against                 = "Against"

@@ -3,15 +3,34 @@ from discord.ext import tasks, commands
 import datetime
 from uuid import uuid4
 
+from db import db
+
 '''References
 https://programtalk.com/vs4/python/yagomichalak/sloth-bot/main.py/
+https://stackoverflow.com/questions/71165431/how-do-i-make-a-working-slash-command-in-discord-py
+'''
+
+'''TODO
+- [ ] Get the channel and role ID's as setup with setup commands for administrator permission only
+- [ ] UI command autocomplete
+    - [ ] This should use discord.Client instead. Review its difference from the commands.Bot class
+- [ ] command translation with i18n
 '''
 
 bot = commands.Bot(command_prefix='d!', intents=discord.Intents.all(), help_command=None, case_insensitive=True)
+# tree = discord.app_commands.CommandTree(bot)
 
 @bot.event
 async def on_ready():
     print("Bot is ready!")
+
+@bot.command()
+async def setupchannel(ctx: discord.Context, channel_select: str):
+    pass
+
+@bot.command()
+async def setuprole(ctx: discord.Context, role_select: str, role: discord.Role):
+    pass
 
 class BotDemocracyCog(commands.Cog):
     def __init__(self, bot):
