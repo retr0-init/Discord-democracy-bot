@@ -38,3 +38,8 @@ class UIVotingButtonEnum(Enum):
     Agree                   = "Agree"
     Waiver                  = "Waiver"
     Against                 = "Against"
+
+
+class UIQuestionDifficultyEnum(Enum):
+    Easy                    = "Easy"
+    Hard                    = "Hard"

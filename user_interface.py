@@ -5,7 +5,8 @@ import uuid
 import datetime
 from typing import List, Optional, Dict, Union
 from bot_types_enum import VoteTypeEnum, PunishmentTypeEnum, CaseStepEnum,
-                            CaseWinnerEnum, PunishmentAuthorityEnum, UIVotingButtonEnum
+                            CaseWinnerEnum, PunishmentAuthorityEnum, UIVotingButtonEnum,
+                            UIQuestionDifficultyEnum
 
 
 '''TODO
@@ -223,3 +224,43 @@ class UIVoting(discord.ui.View):
         await self.message.channel.send("Time Out")
         await self.disable_all_items()
         # Then make the result from the voting result
+
+class UINewUserQuestions(discord.ui.View):
+    async def __init__(self, difficulty: UIQuestionDifficultyEnum):
+        # Load questions
+        '''Question list format example
+        [
+            {
+                "UUID":     "123iudhfjkey54-1234rueiy2sdf",
+                "Question": "1+1 equals to...",
+                "Choices":  {
+                                'A': '2',
+                                'B': '1',
+                                'C': '0'.
+                                'D': '-2'
+                            },
+                "Answer":   'A'
+            },
+            ...
+        ]
+        '''
+        questions: List[Dict[str, Union[uuid.UUID, str, Dict[str, str], str]]] = await db.get_questions(difficulty)
+        # Randomise questions?
+        '''Optional
+        - [ ] Randomise the question list
+        - [ ] Randomise the choices of each question
+        '''
+        # TODO
+
+        for question in questions:
+            self.add_item(discord.ui.Select(
+                custom_id = question["UUID"],
+                options = [discord.SelectOption(label=dictin[key], value=key) for key in dictin],
+                placeholder = question["Question"]
+            ))
+        
+        '''TODO
+        - [ ] Add callback to the buttons
+        '''
+        self.add_item(discord.ui.Button(label="Submit", style=discord.ButtonStyle.success))
+        self.add_item(discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger))
