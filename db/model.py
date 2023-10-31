@@ -6,6 +6,8 @@ from typing import Optional
 import enum
 import uuid
 
+import sqlalchemy
+
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import DateTime
@@ -16,6 +18,7 @@ from sqlalchemy import Enum
 from sqlalchemy import UnicodeText
 from sqlalchemy import Boolean
 
+from sqlalchemy import CheckConstraint
 from sqlalchemy import ForeignKey
 from sqlalchemy import func
 from sqlalchemy import select
@@ -65,6 +68,9 @@ class User(Base):
 
 class Vote(Base):
     __table_name__ = "Vote"
+    __table_args__ = (
+        CheckConstraint('expired > created'),
+    )
 
     id                                          = mapped_column(Uuid, primary_key=True)
     poll_type:      Mapped[enum.Enum]           = mapped_column(Enum(VoteTypeEnum))
@@ -82,6 +88,9 @@ class Vote(Base):
 
 class Case(Base):
     __table_name__ = "Case"
+    __table_args__ = (
+        CheckConstraint('closed > created'),
+    )
 
     id:             Mapped[uuid.UUID]           = mapped_column(Uuid, primary_key=True)
     created:        Mapped[datetime.datetime]   = mapped_column(DateTime)
@@ -99,6 +108,9 @@ class Case(Base):
 
 class Punishment(Base):
     __table_name__ = "Punishment"
+    __table_args__ = (
+        CheckConstraint('expired >= created'),
+    )
 
     id:             Mapped[uuid.UUID]           = mapped_column(Uuid, primary_key=True)
     created:        Mapped[datetime.datetime]   = mapped_column(DateTime)
@@ -115,3 +127,28 @@ class Metadata(Base):
 
     id:             Mapped[int]                 = mapped_column(Integer, primary_key=True)
     influence_ratio:Mapped[float]               = mapped_column(Float(5))
+    guild_id:       Mapped[int]                 = mapped_column(Integer)
+    role_admin:     Mapped[int]                 = mapped_column(Integer)
+    role_judge:     Mapped[int]                 = mapped_column(Integer)
+    role_wardenry:  Mapped[int]                 = mapped_column(Integer)
+    role_technical: Mapped[int]                 = mapped_column(Integer)
+    role_left:      Mapped[int]                 = mapped_column(Integer)
+    role_right:     Mapped[int]                 = mapped_column(Integer)
+    role_anarchy:   Mapped[int]                 = mapped_column(Integer)
+    role_extreme:   Mapped[int]                 = mapped_column(Integer)
+    role_mild:      Mapped[int]                 = mapped_column(Integer)
+    ch_election:    Mapped[int]                 = mapped_column(Integer)
+    ch_court:       Mapped[int]                 = mapped_column(Integer)
+    ch_invite:      Mapped[int]                 = mapped_column(Integer)
+    ch_jail:        Mapped[int]                 = mapped_column(Integer)
+
+class Questions(Base):
+    __table_name__ = "Questions"
+
+    id:             Mapped[uuid.UUID]           = mapped_column(Uuid, primary_key=True)
+    question:       Mapped[str]                 = mapped_column(String)
+    option_A:       Mapped[str]                 = mapped_column(String)
+    option_B:       Mapped[str]                 = mapped_column(String)
+    option_C:       Mapped[str]                 = mapped_column(String)
+    option_D:       Mapped[str]                 = mapped_column(String)
+    answer:         Mapped[str]                 = mapped_column(String(8), CheckConstraint("answer = 'A' OR answer = 'B' OR answer = 'C' OR answer = 'D'"))

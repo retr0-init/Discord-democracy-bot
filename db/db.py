@@ -12,10 +12,11 @@ import uuid
 from bot_types_enum import VoteTypeEnum, CaseStepEnum, CaseWinnerEnum, PunishmentTypeEnum, PunishmentAuthorityEnum
 
 '''TODO
-- [ ] Change this to sqlalchemy with sqllite database
+- [x] Change this to sqlalchemy with sqllite database
 - [ ] Error handling for async database operations
 - [ ] Find whether there are more find functions needed
     - [ ] "Upsert" instead of "insert"
+- [ ] Add update methods to the table
 - [ ] Table creation if not exist
 - [ ] Table & field conflict resolve
 - [x] Consider pushing the data insertion and request to a queue to avoid implicit IO
@@ -119,6 +120,15 @@ class DB(Object):
             results = await conn.execute(sa.select(Punishment.c.expired <= expired and Punishment.c.completed is False and Punishment.c.applied is False))
         return results
 
+    async def find_metadata_all(self, guild_id: int) -> dict:
+        results = dict()
+        async with self,engine.connect() as conn:
+            _ = await conn.execute(sa.select(Metadata.c.guild_id == guild_id))
+            results = _.mappings().all()
+        return results[0]
+
+    async def upsert_metadata(self, guild_id: int, channel_name: str, channel_id: int):
+        pass
 
 '''TODO
 Move this to the discord event trigger code block

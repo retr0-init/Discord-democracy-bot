@@ -3,7 +3,7 @@ from discord.ext import tasks, commands
 import datetime
 from uuid import uuid4
 
-from db import db
+from db import DB
 from user_interface import UIRaiseElection, UINewUserQuestions
 
 '''References
@@ -17,17 +17,50 @@ https://stackoverflow.com/questions/71165431/how-do-i-make-a-working-slash-comma
     - [ ] This should use discord.Client instead. Review its difference from the commands.Bot class
 - [ ] command translation with i18n
 - [ ] Check the setup command persmissions
+- [ ] News / Information source from public funded broadcasters
+    - BBC Zhongwen "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"
+    - ABC Zhongwen "https://www.abc.net.au/news/feed/8537074/rss_fulltext.xml"
+    - PBS World "https://www.pbs.org/newshour/feeds/rss/world"
+    - PBS US Politics "https://www.pbs.org/newshour/feeds/rss/politics"
+    - PBS US Economy "https://www.pbs.org/newshour/feeds/rss/economy"
+    - PBS podcasts "https://www.pbs.org/newshour/feeds/rss/podcasts"
+    - Swiss Info Chinese "https://www.swissinfo.ch/chi"
+    - ... https://www.swissinfo.ch/chi/%E4%B8%AD%E5%9B%BD%E5%A6%82%E4%BD%95%E6%94%B9%E5%86%99%E4%BA%BA%E6%9D%83%E5%87%86%E5%88%99/48842062
+    - PTS "https://news.pts.org.tw/xml/newsfeed.xml"
+    - KBS International Chinese "http://world.kbs.co.kr/rss/rss_news.htm?lang=c&id=In"
+    - CBC World "https://www.cbc.ca/webfeed/rss/rss-world"
 '''
 
 bot: discord.ext.commands.Bot = commands.Bot(command_prefix='d!', intents=discord.Intents.all(), help_command=None, case_insensitive=True)
 
 guild_id: int = 0
+ROLE_ID_LIST: Dict[str, int] = {
+    "Admin":        0,
+    "Judge":        0,
+    "Wardenry":     0,
+    "Technical":    0,
+    "Left":         0,
+    "Right":        0,
+    "Anarchy":      0,
+    "Extreme":      0,
+    "Mild":         0
+}
+CHANNEL_ID_LIST: Dict[str, int] = {
+    "Jail":         0,
+    "Court":        0,
+    "Invite":       0,
+    "Election":     0
+}
+
+db: Optional[DB] = None
 
 @bot.event
 async def on_ready():
     global guild_id
+    global db
     # guild_id = await db.get_guild_id()
     await bot.tree.sync(guild=discord.Object(id=guild_id))
+    db = await DB()
     print("Bot is ready!")
 
 @bot.event

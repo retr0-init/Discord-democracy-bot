@@ -13,5 +13,6 @@
 	python311Packages.sqlalchemy
 	python311Packages.aiosqlite
 #	mysql
+	python311Packages.feedparser
     ];
 }

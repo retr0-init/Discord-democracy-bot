@@ -1,5 +1,6 @@
 import discord
 import traceback
+import os
 
 import uuid
 import datetime
@@ -7,7 +8,7 @@ from typing import List, Optional, Dict, Union
 from bot_types_enum import VoteTypeEnum, PunishmentTypeEnum, CaseStepEnum,
                             CaseWinnerEnum, PunishmentAuthorityEnum, UIVotingButtonEnum,
                             UIQuestionDifficultyEnum
-
+from main import ROLE_ID_LIST, CHANNEL_ID_LIST
 
 '''TODO
 - [ ] Create the UI for election, court, normal voting, and moderation
@@ -37,8 +38,10 @@ class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
     async def select_role(self, interaction: discord.Interaction, select_item: discord.ui.Select):
         selected_option : str = select_item.values[0]
         selected_role : Optional[discord.Role] = None
+        selected_role = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
         if selected_option == "Admin":
             # Need to get the Role ID of Admin
+            pass
         elif selected_option == "Judge":
             pass
         elif selected_option == "Technical":
