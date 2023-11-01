@@ -8,8 +8,9 @@ class VoteTypeEnum(Enum):
     ElectionJudge           = 4
     ElectionAdmin           = 5
     ElectionWardenry        = 6
-    Impeachment             = 7
-    Invite                  = 8
+    ElectionTechnical       = 7
+    Impeachment             = 8
+    Invite                  = 9
 
 
 class PunishmentTypeEnum(Enum):

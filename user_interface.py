@@ -16,6 +16,7 @@ from main import ROLE_ID_LIST, CHANNEL_ID_LIST
 - [x] Or use Select only and map the choice to the specific channel
 - [x] UIVote needs to send the message to convert it to view. Need to check how to do it properly.
 - [ ] UIVote manage vote according to the inputs and results
+- [ ] UIRaiseElection: show channel selection after the role selection
 '''
 
 
@@ -24,9 +25,10 @@ class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
     '''
     Choose the role and channel according to the literal option.
     '''
+    selected_role : Optional[discord.Role] = None
+    selected_channel : Optional[discord.Role] = None
 
     @discord.ui.select(
-        cls = discord.ui.RoleSelect,
         options = [
             discord.SelectOption(label="Admin",     value="Admin"),     # Role Admin
             discord.SelectOption(label="Judge",     value="Judge"),     # Role Judge
@@ -37,8 +39,8 @@ class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
     )
     async def select_role(self, interaction: discord.Interaction, select_item: discord.ui.Select):
         selected_option : str = select_item.values[0]
-        selected_role : Optional[discord.Role] = None
-        selected_role = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
+        self.selected_role : discord.Role = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
+        self.selected_role_str : str = selected_option
         if selected_option == "Admin":
             # Need to get the Role ID of Admin
             pass
@@ -53,7 +55,6 @@ class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
         pass
 
     @discord.ui.select(
-        cls = discord.ui.ChannelSelect,
         options = [
             discord.SelectOption(label="Left",      value="Left"),      # Channel Left
             discord.SelectOption(label="Right",     value="Right"),     # Channel Left
@@ -62,13 +63,14 @@ class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
             discord.SelectOption(label="Extreme",   value="Extreme")    # Channel Left
         ],
         placeholder = "Please select the channel where you will be elected as an admin",
-        channel_types = [discord.ChannelType.text]
     )
     async def select_channel(self, interaction: discord.Interaction, select_item: discord.ui.Select):
         selected_option : str = select_item.values[0]
-        selected_channel : Optional[discord.Channel] = None
+        self.selected_channel : discord.Channel = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
+        self.selected_channel_str : str = selected_option
         if selected_option == "Left":
             # Need to get the role ID of Left
+            pass
         elif selected_option == "Right":
             pass
         elif selected_option == "Anarchy":
@@ -89,7 +91,25 @@ class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Thanks for participating election, {self.name.value}!", ephemeral=True)
+        if self.selected_channel is None or self.selected_role is None:
+            await interaction.response.send_modal(discord.ui.Modal(
+                title = "Please select the role or channel to be elected!",
+                timeout = 30.0
+            ))
+        else:
+            await interaction.response.send_message(f"Thanks for participating election, {self.name.value}!", ephemeral=True)
+            # TODO
+            embed = UIVoting.generate_embed()
+            # TODO get the
+            thread = await interaction.guild.get_channel(CHANNEL_ID_LIST["Election"]).create_thread(
+                name = "",
+                auto_archive_duration = 1440,   # Archive the election thread automatically after one day.
+                slowmode_delay = 1,             # Slowmode 1 second delay
+                content = "",
+                embed = discord.Embed(),
+                view = UIVoting(),
+                reason = f"Election - {self.selected_role_str}"
+            )
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message("Oops! Something went wrong. Please check the information enterred.", ephemeral=True)
@@ -202,10 +222,7 @@ class UIVoting(discord.ui.View):
     jump_url: str
     buttons: List[UIVotingButton] = []
 
-    async def __new__(self, message: discord.Message, vote_type: VoteTypeEnum, timeout: float):
-        return discord.ui.View.from_message(message, timeout=timeout)
-
-    async def __init__(self, message: discord.Messgae, vote_type: VoteTypeEnum, timeout: float):
+    async def __init__(self, vote_type: VoteTypeEnum, timeout: float):
         # super().__init__(timeout=timeout)
         self.vote_type : VoteTypeEnum = vote_type
 
@@ -227,6 +244,60 @@ class UIVoting(discord.ui.View):
         await self.message.channel.send("Time Out")
         await self.disable_all_items()
         # Then make the result from the voting result
+
+    @@staticmethod
+    def generate_embed(vote_type: VoteTypeEnum, vote_author: discord.Member, vote_message: str) -> discord.Embed:
+        colour : discord.Colour = discord.Colour.light_grey
+        author : str = "Invalid"
+        title  : str = "Invalid"
+        match vote_type:
+            case VoteTypeEnum.LegislationConstitution:
+                author = "Legislation Constitution"
+                colour = discord.Colour.from_str("#0000FF")
+                title = ""
+            case VoteTypeEnum.LegislationLaw:
+                author = "Legislation Law"
+                colour = discord.Colour.from_str("#6666FF")
+                title = ""
+            case VoteTypeEnum.LegislationAffair:
+                author = "Legislation Affair"
+                colour = discord.Colour.from_str("#CCCCFF")
+                title = ""
+            case VoteTypeEnum.Justice:
+                author = "Justice"
+                colour = discord.Colour.from_str("#EED202")
+                title = ""
+            case VoteTypeEnum.ElectionJudge:
+                author = "Judge Election"
+                colour = discord.Colour.from_str("#0066CC")
+                title = f"{vote_author.display_name} Judge Election @{vote_author.mention}"
+            case VoteTypeEnum.ElectionAdmin:
+                author = "Admin Election"
+                colour = discord.Colour.from_str("#6600CC")
+                title = f"{vote_author.display_name} Admin Election @{vote_author.mention}"
+            case VoteTypeEnum.ElectionWardenry:
+                author = "Wardenry Election"
+                colour = discord.Colour.from_str("#606060")
+                title = f"{vote_author.display_name} Wardenry Election @{vote_author.mention}"
+            case VoteTypeEnum.ElectionTechnical:
+                author = "Technical Election"
+                colour = discord.Colour.from_str("#66CC00")
+                title = f"{vote_author.display_name} Technical Election @{vote_author.mention}"
+            case VoteTypeEnum.Impeachment:
+                author = "Impeachment"
+                colour = discord.Colour.from_str("#FF0000")
+                title = ""
+            case VoteTypeEnum.Invite:
+                author = "New member vote"
+                colour = discord.Colour.from_str("#00FF00")
+                title = ""
+        return discord.Embed(
+            title = "",
+            author = author,
+            description = vote_message,
+            timestamp = datetime.datetime("2023-11-01 00:25"),
+            colour = colour
+        )
 
 class UINewUserQuestions(discord.ui.View):
     async def __init__(self, difficulty: UIQuestionDifficultyEnum):
