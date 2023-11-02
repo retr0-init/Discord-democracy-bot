@@ -12,22 +12,84 @@ from main import ROLE_ID_LIST, CHANNEL_ID_LIST
 
 '''TODO
 - [ ] Create the UI for election, court, normal voting, and moderation
-- [ ] UIElection needs to have choice filter based on previous selection
+- [x] UIElection needs to have choice filter based on previous selection
 - [x] Or use Select only and map the choice to the specific channel
 - [x] UIVote needs to send the message to convert it to view. Need to check how to do it properly.
 - [ ] UIVote manage vote according to the inputs and results
-- [ ] UIRaiseElection: show channel selection after the role selection
+- [x] UIRaiseElection: show channel selection after the role selection
+- [ ] UIVoting: Update the UI view for the voting interface
+- [ ] Update the UI class that calls the UIVoting class.
+- [ ] Update the database from the UIVoting class
 '''
 
+class UIRaiseElectionElectionAbstract(discord.ui.Modal):
 
-class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
+    election_abstract = discord.ui.TextInput(
+        label = "What is your election abstract?",
+        style = discord.TextStyle.long,
+        placeholder = "Enter your election abstract here...",
+        required = True
+    )
+
+    def __init__(self, selected_role: str, selected_channel: Optional[str] = None):
+        title = f"{selected_role}{f" in {selected_channel} electorals" if selected_channel is not None else ""}"
+        super().__init__(title=title)
+        self.selected_role      : str = selected_role
+        self.selected_channel   : str = selected_channel
+
+    async def on_submit(self, interaction: discord.Interaction):
+        guild : discord.Guild = interaction.guild
+        channel : discord.Role = guild.get_role(ROLE_ID_LIST[self.selected_role])
+        role: discord.Role = guild.get_role(ROLE_ID_LIST[self.selected_channel])
+        election_channel : discord.Channel = await guild.fetch_channel(CHANNEL_ID_LIST["Election"])
+        #TODO complete the class init and method's parameters
+        #TODO complete the election thread title and body
+        #TODO add this voting to the database? Do it in the UIVoting class?
+        embed = UIVoting.generate_embed()
+        await election_channel.create_thread(
+            name="title",                       # Election vote title
+            content="body",                     # Plain text body. Perbably not required.
+            embed=discord.Embed(),              # Rich text body 
+            view=UIVoting(),                    # voting button view 
+            reason=f"Created Election - {self.selected_role_str}",
+            slowmode_delay=1,                   # slow mode delay for 1 second
+            applied_tags=[],
+            auto_archive_duration=1440          # Auto archived period. Must be 1 hour (60), 1 day (1440), 3 days (4320) or 7 days (10080)
+        )
+        await interaction.response.edit_message(content=f"Thanks for participating the election as {self.selected_role}! Your election proposal has been sent to the election channel.", view=None)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        await interaction.response.send_message("Oops! Something went wrong. Please check the information enterred.", ephemeral=True)
+        traceback.print_exception(type(error), error, error.__traceback__)
+
+
+class UIRaiseElectionSelectChannel(discord.ui.View):
+    def __init__(self, selected_role: str):
+        super().__init__()
+        self.selected_role = selected_role
+
+    @discord.ui.select(
+        options = [
+            discord.SelectOption(label="Left",      value="Left"),      # Channel Left
+            discord.SelectOption(label="Right",     value="Right"),     # Channel Left
+            discord.SelectOption(label="Anarchy",   value="Anarchy"),   # Channel Left
+            discord.SelectOption(label="Mild",      value="Mild"),      # Channel Left
+            discord.SelectOption(label="Extreme",   value="Extreme")    # Channel Left
+        ],
+        placeholder = "Please select the channel where you will be elected as an admin or a judge",
+        disabled = True
+    )
+    async def select_channel(self, interaction: discord.Interaction, select_item: discord.ui.Select):
+        selected_option : str = select_item.values[0]
+        self.selected_channel : discord.Channel = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
+        self.selected_channel_str : str = selected_option
+
+
+class UIRaiseElection(discord.ui.View):
     #TODO Will the electable roles all be created individually?
     '''
     Choose the role and channel according to the literal option.
     '''
-    selected_role : Optional[discord.Role] = None
-    selected_channel : Optional[discord.Role] = None
-
     @discord.ui.select(
         options = [
             discord.SelectOption(label="Admin",     value="Admin"),     # Role Admin
@@ -41,79 +103,10 @@ class UIRaiseElection(discord.ui.Modal, title="Raise an election"):
         selected_option : str = select_item.values[0]
         self.selected_role : discord.Role = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
         self.selected_role_str : str = selected_option
-        if selected_option == "Admin":
-            # Need to get the Role ID of Admin
-            pass
-        elif selected_option == "Judge":
-            pass
-        elif selected_option == "Technical":
-            pass
-        elif selected_option == "Wardenrey":
-            pass
-        else:
-            # Handle error selection
-        pass
+        if selected_option == "Admin" or selected_option == "Judge":
+            interaction.response.edit_message(content=f"Your expected role is {selected_option}. Please choose the electorate below.", view=UIRaiseElectionSelectChannel(selected_option))
+    
 
-    @discord.ui.select(
-        options = [
-            discord.SelectOption(label="Left",      value="Left"),      # Channel Left
-            discord.SelectOption(label="Right",     value="Right"),     # Channel Left
-            discord.SelectOption(label="Anarchy",   value="Anarchy"),   # Channel Left
-            discord.SelectOption(label="Mild",      value="Mild"),      # Channel Left
-            discord.SelectOption(label="Extreme",   value="Extreme")    # Channel Left
-        ],
-        placeholder = "Please select the channel where you will be elected as an admin",
-    )
-    async def select_channel(self, interaction: discord.Interaction, select_item: discord.ui.Select):
-        selected_option : str = select_item.values[0]
-        self.selected_channel : discord.Channel = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
-        self.selected_channel_str : str = selected_option
-        if selected_option == "Left":
-            # Need to get the role ID of Left
-            pass
-        elif selected_option == "Right":
-            pass
-        elif selected_option == "Anarchy":
-            pass
-        elif selected_option == "Mild":
-            pass
-        elif selected_option == "Extreme":
-            pass
-        else:
-            # Handle the error selection
-        pass
-
-    election_abstract = discord.ui.TextInput(
-        label = "What is your election abstract?",
-        style = discord.TextStyle.long,
-        placeholder = "Enter your election abstract here...",
-        required = True
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if self.selected_channel is None or self.selected_role is None:
-            await interaction.response.send_modal(discord.ui.Modal(
-                title = "Please select the role or channel to be elected!",
-                timeout = 30.0
-            ))
-        else:
-            await interaction.response.send_message(f"Thanks for participating election, {self.name.value}!", ephemeral=True)
-            # TODO
-            embed = UIVoting.generate_embed()
-            # TODO get the
-            thread = await interaction.guild.get_channel(CHANNEL_ID_LIST["Election"]).create_thread(
-                name = "",
-                auto_archive_duration = 1440,   # Archive the election thread automatically after one day.
-                slowmode_delay = 1,             # Slowmode 1 second delay
-                content = "",
-                embed = discord.Embed(),
-                view = UIVoting(),
-                reason = f"Election - {self.selected_role_str}"
-            )
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message("Oops! Something went wrong. Please check the information enterred.", ephemeral=True)
-        traceback.print_exception(type(error), error, error.__traceback__)
 
 
 class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
