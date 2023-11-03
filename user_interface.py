@@ -17,9 +17,10 @@ from main import ROLE_ID_LIST, CHANNEL_ID_LIST
 - [x] UIVote needs to send the message to convert it to view. Need to check how to do it properly.
 - [ ] UIVote manage vote according to the inputs and results
 - [x] UIRaiseElection: show channel selection after the role selection
-- [ ] UIVoting: Update the UI view for the voting interface
+- [x] UIVoting: Update the UI view for the voting interface
 - [ ] Update the UI class that calls the UIVoting class.
 - [ ] Update the database from the UIVoting class
+- [ ] Think about the Button implementation for the UIVoting class
 '''
 
 class UIRaiseElectionElectionAbstract(discord.ui.Modal):
@@ -136,7 +137,8 @@ class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
     pass
 
 class UIVotingButton(discord.ui.Button):
-    def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, row: Optional[int] = None):
+    def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, vote_type: VoteTypeEnum, row: Optional[int] = None):
+        self.vote_type: VoteTypeEnum = vote_type
         match button_type:
             case UIVotingButtonEnum.Agree:
                 style = discord.ButtonStyle.success
@@ -156,51 +158,11 @@ class UIVotingButton(discord.ui.Button):
         buttons = view.buttons
         vote_type: VoteTypeEnum = view.vote_type
         user: Union[discord.User, discord.Member] = interaction.user
+        if 
         # TODO check user permission with the database check
         # TODO disable the button for this interaction user
 
 class UIVoting(discord.ui.View):
-    '''
-    Pass the title, body and vote_type to the command reply, and pass the message object to this class
-    async def __new__(self, vote_title: str, vote_body: str, options: List[str], vote_type: VoteTypeEnum, timeout: float):
-        match vote_type:
-            case VoteTypeEnum.LegislationConstitution:
-                author = "Legislation Constitution"
-                colour = discord.Colour.from_str("#0000FF")
-            case VoteTypeEnum.LegislationLaw:
-                author = "Legislation Law"
-                colour = discord.Colour.from_str("#6666FF")
-            case VoteTypeEnum.LegislationAffair:
-                author = "Legislation Affair"
-                colour = discord.Colour.from_str("#CCCCFF")
-            case VoteTypeEnum.Justice:
-                author = "Justice"
-                colour = discord.Colour.from_str("#EED202")
-            case VoteTypeEnum.ElectionJudge:
-                author = "Judge Election"
-                colour = discord.Colour.from_str("#0066CC")
-            case VoteTypeEnum.ElectionAdmin:
-                author = "Admin Election"
-                colour = discord.Colour.from_str("#6600CC")
-            case VoteTypeEnum.ElectionWardenry:
-                author = "Wardenry Election"
-                colour = discord.Colour.from_str("#606060")
-            case VoteTypeEnum.Impeachment:
-                author = "Impeachment"
-                colour = discord.Colour.from_str("#FF0000")
-            case VoteTypeEnum.Invite:
-                author = "New member vote"
-                colour = discord.Colour.from_str("#00FF00")
-        msg = discord.Embed(
-            title = f"{vote_title}",
-            author = author,
-            description = f"{vote_body}",
-            colour = colour
-        )
-        #Send the message and convert it to self
-        message = await ctx.send_message(embed=msg)
-        return discord.ui.View.from_message(message, timeout=timeout)
-    '''
     
     id: uuid.UUID
     created: datetime.datetime
@@ -214,6 +176,7 @@ class UIVoting(discord.ui.View):
     waiver: List[Union[discord.User, discord.Member]]
     jump_url: str
     buttons: List[UIVotingButton] = []
+    clicked_users: List[int] = []
 
     async def __init__(self, vote_type: VoteTypeEnum, timeout: float):
         # super().__init__(timeout=timeout)
@@ -238,28 +201,33 @@ class UIVoting(discord.ui.View):
         await self.disable_all_items()
         # Then make the result from the voting result
 
-    @@staticmethod
-    def generate_embed(vote_type: VoteTypeEnum, vote_author: discord.Member, vote_message: str) -> discord.Embed:
+    @staticmethod
+    def generate_embed(vote_type: VoteTypeEnum, vote_author: discord.Member, vote_message: str, member_against: Optional[discord.Member]) -> Optional[discord.Embed]:
         colour : discord.Colour = discord.Colour.light_grey
         author : str = "Invalid"
         title  : str = "Invalid"
+        current_time: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)
+        zettlekasten_tag: str = current_time.strftime("%Y%m%d%H%M%S")
         match vote_type:
             case VoteTypeEnum.LegislationConstitution:
                 author = "Legislation Constitution"
                 colour = discord.Colour.from_str("#0000FF")
-                title = ""
+                title = f"{zettlekasten_tag} Constitution Vote"
             case VoteTypeEnum.LegislationLaw:
                 author = "Legislation Law"
                 colour = discord.Colour.from_str("#6666FF")
-                title = ""
+                title = f"{zettlekasten_tag} Regional Law Vote"
             case VoteTypeEnum.LegislationAffair:
                 author = "Legislation Affair"
                 colour = discord.Colour.from_str("#CCCCFF")
-                title = ""
+                title = f"{zettlekasten_tag} Guild Affair Vote"
             case VoteTypeEnum.Justice:
+                if member_against is None:
+                    print("The member to against is not provided!")
+                    return None
                 author = "Justice"
                 colour = discord.Colour.from_str("#EED202")
-                title = ""
+                title = f"{zettlekasten_tag} Justice {vote_author.guild.name} V.s. {member_against.display_name}"
             case VoteTypeEnum.ElectionJudge:
                 author = "Judge Election"
                 colour = discord.Colour.from_str("#0066CC")
@@ -277,18 +245,21 @@ class UIVoting(discord.ui.View):
                 colour = discord.Colour.from_str("#66CC00")
                 title = f"{vote_author.display_name} Technical Election @{vote_author.mention}"
             case VoteTypeEnum.Impeachment:
+                if member_against is None:
+                    print("The member to against is not provided!")
+                    return None
                 author = "Impeachment"
                 colour = discord.Colour.from_str("#FF0000")
-                title = ""
+                title = f"{zettlekasten_tag} Impeachment {vote_author.display_name} V.s. {member_against.display_name}"
             case VoteTypeEnum.Invite:
                 author = "New member vote"
                 colour = discord.Colour.from_str("#00FF00")
-                title = ""
+                title = f"New member vote for {vote_author.display_name}"
         return discord.Embed(
-            title = "",
+            title = title,
             author = author,
             description = vote_message,
-            timestamp = datetime.datetime("2023-11-01 00:25"),
+            timestamp = current_time,
             colour = colour
         )
 
