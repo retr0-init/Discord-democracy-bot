@@ -29,6 +29,8 @@ https://stackoverflow.com/questions/71165431/how-do-i-make-a-working-slash-comma
     - PTS "https://news.pts.org.tw/xml/newsfeed.xml"
     - KBS International Chinese "http://world.kbs.co.kr/rss/rss_news.htm?lang=c&id=In"
     - CBC World "https://www.cbc.ca/webfeed/rss/rss-world"
+- [ ] Bot Tree command context menu?
+- [ ] Bot Tree command autocomplete
 '''
 
 bot: discord.ext.commands.Bot = commands.Bot(command_prefix='d!', intents=discord.Intents.all(), help_command=None, case_insensitive=True)
@@ -116,7 +118,14 @@ async def getguildid(ctx:discord.Context):
 @commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
 async def setupchannel(interaction: discord.Interaction, channel_select: str):
-    pass
+    channel: Union[discord.abc.GuildChannel, discord.Thread] = interaction.channel
+    channel_id: int = 0
+    if isinstance(channel, discord.Thread):
+        channel_id = channel.parent_id
+    elif isinstance(channel, discord.abc.GuildChannel):
+        channel_id = channel.id
+    else:
+        print("This channel is not for guilds!")
 
 @bot.tree.command(name="setuprole", description="Setup a specific role for specific usage", guild=discord.Object(id=guild_id))
 @commands.has_permissions(administrator=True)
