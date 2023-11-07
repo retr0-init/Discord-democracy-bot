@@ -137,6 +137,7 @@ class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
     pass
 
 class UIVotingButton(discord.ui.Button):
+    users: disocrd.Member = []
     def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, vote_type: VoteTypeEnum, row: Optional[int] = None):
         self.vote_type: VoteTypeEnum = vote_type
         match button_type:
@@ -158,7 +159,8 @@ class UIVotingButton(discord.ui.Button):
         buttons = view.buttons
         vote_type: VoteTypeEnum = view.vote_type
         user: Union[discord.User, discord.Member] = interaction.user
-        if 
+        if user not in self.users:
+            self.users.append(user)
         # TODO check user permission with the database check
         # TODO disable the button for this interaction user
 
