@@ -33,7 +33,7 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
     )
 
     def __init__(self, selected_role: str, selected_channel: Optional[str] = None):
-        title = f"{selected_role}{f" in {selected_channel} electorals" if selected_channel is not None else ""}"
+        title = f"{selected_role}{f" in {selected_channel} electorals" if selected_role == "Admin" or selected_role == "Judge" else ""}"
         super().__init__(title=title)
         self.selected_role      : str = selected_role
         self.selected_channel   : str = selected_channel
@@ -47,11 +47,12 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
         #TODO complete the election thread title and body
         #TODO add this voting to the database? Do it in the UIVoting class?
         embed = UIVoting.generate_embed()
-        await election_channel.create_thread(
+        view: discord.View = UIVoting()
+        view.thread, view.message = await election_channel.create_thread(
             name="title",                       # Election vote title
             content="body",                     # Plain text body. Perbably not required.
             embed=discord.Embed(),              # Rich text body 
-            view=UIVoting(),                    # voting button view 
+            view=view,                          # voting button view 
             reason=f"Created Election - {self.selected_role_str}",
             slowmode_delay=1,                   # slow mode delay for 1 second
             applied_tags=[],
@@ -64,34 +65,14 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
         traceback.print_exception(type(error), error, error.__traceback__)
 
 
-class UIRaiseElectionSelectChannel(discord.ui.View):
-    def __init__(self, selected_role: str):
-        super().__init__()
-        self.selected_role = selected_role
-
-    @discord.ui.select(
-        options = [
-            discord.SelectOption(label="Left",      value="Left"),      # Channel Left
-            discord.SelectOption(label="Right",     value="Right"),     # Channel Left
-            discord.SelectOption(label="Anarchy",   value="Anarchy"),   # Channel Left
-            discord.SelectOption(label="Mild",      value="Mild"),      # Channel Left
-            discord.SelectOption(label="Extreme",   value="Extreme")    # Channel Left
-        ],
-        placeholder = "Please select the channel where you will be elected as an admin or a judge",
-        disabled = True
-    )
-    async def select_channel(self, interaction: discord.Interaction, select_item: discord.ui.Select):
-        selected_option : str = select_item.values[0]
-        self.selected_channel : discord.Channel = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
-        self.selected_channel_str : str = selected_option
-
-
 class UIRaiseElection(discord.ui.View):
     #TODO Will the electable roles all be created individually?
+    def __init__(self, electorate: str):
+        self.electorate: str = electorate
     '''
     Choose the role and channel according to the literal option.
     '''
-    @discord.ui.select(
+    @discord.ui.select
         options = [
             discord.SelectOption(label="Admin",     value="Admin"),     # Role Admin
             discord.SelectOption(label="Judge",     value="Judge"),     # Role Judge
@@ -102,10 +83,8 @@ class UIRaiseElection(discord.ui.View):
     )
     async def select_role(self, interaction: discord.Interaction, select_item: discord.ui.Select):
         selected_option : str = select_item.values[0]
-        self.selected_role : discord.Role = interaction.guild.get_role(ROLE_ID_LIST[selected_option])
         self.selected_role_str : str = selected_option
-        if selected_option == "Admin" or selected_option == "Judge":
-            interaction.response.edit_message(content=f"Your expected role is {selected_option}. Please choose the electorate below.", view=UIRaiseElectionSelectChannel(selected_option))
+        await interaction.response.send_modal(modal=UIRaiseElectionElectionAbstract(selected_role_str, self,electorate))
     
 
 
@@ -137,9 +116,10 @@ class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
     pass
 
 class UIVotingButton(discord.ui.Button):
-    users: disocrd.Member = []
-    def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, vote_type: VoteTypeEnum, row: Optional[int] = None):
+    def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, vote_type: VoteTypeEnum, all_lists: Dict[str, List[Union[discord.user, discord.Member]]], row: Optional[int] = None):
         self.vote_type: VoteTypeEnum = vote_type
+        self.users: List[discord.Member] = all_lists[button_type.value]
+        self.all_user_lists: Dict[str, List[discord.Member]] = all_lists
         match button_type:
             case UIVotingButtonEnum.Agree:
                 style = discord.ButtonStyle.success
@@ -159,10 +139,13 @@ class UIVotingButton(discord.ui.Button):
         buttons = view.buttons
         vote_type: VoteTypeEnum = view.vote_type
         user: Union[discord.User, discord.Member] = interaction.user
-        if user not in self.users:
+        list_bool: List[bool] = [user in x for x in self.all_user_lists]
+        if not any(list_bool):
             self.users.append(user)
+            await interaction.response.send_message(content=f"You voted as {self.vote_type.value}", ephemeral=True)
+        else:
+            await interaction.response.send_message(content=f"You have already voted for {list(self.all_user_lists.keys())[list_bool.index(True)]}!", ephemeral=True)
         # TODO check user permission with the database check
-        # TODO disable the button for this interaction user
 
 class UIVoting(discord.ui.View):
     
@@ -179,14 +162,23 @@ class UIVoting(discord.ui.View):
     jump_url: str
     buttons: List[UIVotingButton] = []
     clicked_users: List[int] = []
+    # https://stackoverflow.com/questions/69265909/discord-py-edit-the-interaction-message-after-a-timeout-in-discord-ui-select
+    message: Optional[discord.Message] = None
+    thread: Optional[discord.Thread] = None
+
+    vote_dict: Dict[str, List[Union[discord.Member, discord.User]]] = {
+        "Agree":    self.agree,
+        "Against":  self.against,
+        "Waiver":   self.waiver
+    }
 
     async def __init__(self, vote_type: VoteTypeEnum, timeout: float):
-        # super().__init__(timeout=timeout)
+        super().__init__(timeout=timeout)
         self.vote_type : VoteTypeEnum = vote_type
 
         for vote_option in UIVotingButtonEnum:
             label = vote_option.value
-            button = UIVotingButton(label=label, button_type=vote_option, custom_id=label, row=2)
+            button = UIVotingButton(label=label, button_type=vote_option, custom_id=label, all_lists=self.vote_dict, row=2)
             self.buttons.append(button)
             self.add_item(button)
 
@@ -197,6 +189,7 @@ class UIVoting(discord.ui.View):
         for item in self.children:
             item.disabled = True
         await self.message.edit(view=self)
+        await self.stop()
 
     async def on_timeout(self) -> None:
         await self.message.channel.send("Time Out")
@@ -304,3 +297,40 @@ class UINewUserQuestions(discord.ui.View):
         '''
         self.add_item(discord.ui.Button(label="Submit", style=discord.ButtonStyle.success))
         self.add_item(discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger))
+
+def dictGetKeystrFromValue(d: Dict[str, Union[int, str]], value: Union[int, str]) -> str:
+    return list(d.keys())[list(d.values()).index(value)]
+
+class UIControlPanel(discord.ui.View):
+    def __init__(self, member: discord.Member):
+        super().__init__()
+        role: List[discord.Role] = member.roles
+        self.roles: List[str] = [dictGetKeystrFromValue(ROLE_ID_LIST, x) for x in role]
+        self.official_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Official"]]
+        self.electorate_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Electorate"]]
+        self.identity_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Identity"]]
+        if "Temp" in identity_roles:
+            button1 = discord.ui.Button(label="Take test")
+            button1.callback = self.raise_questions
+            return
+
+    async def disable_stop(self):
+        for item in self.children:
+            item.disabled = True
+        self.stop()
+
+    async def raise_election(self, interaction: discord.Interaction):
+        await interaction.response.send_message(content="", view=(), ephemeral=True)
+        await self.disable_stop()
+
+    async def raise_questions(self, interaction: discord.Interaction):
+        await interaction.response.send_message(content="", view=(), ephemeral=True)
+        await self.disable_stop()
+
+    async def raise_court(self, interaction: discord.Interacation):
+        await interaction.response.send_message(content="", view=(), ephemeral=True)
+        await self.disable_stop()
+
+    async def raise_appeal(self, interaction: discord.Interaction):
+        await interaction.response.send_message(content="", view=(), ephemeral=True)
+        await self.disable_stop()

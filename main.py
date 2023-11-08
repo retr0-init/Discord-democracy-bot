@@ -45,13 +45,43 @@ ROLE_ID_LIST: Dict[str, int] = {
     "Right":        0,
     "Anarchy":      0,
     "Extreme":      0,
-    "Mild":         0
+    "Mild":         0,
+    "Temp":         0,
+    "Citizen":      0,
+    "Defendant":    0,
+    "Accuser":      0,
+    "Prisoner":     0,
+    "Lawyer":       0
+}
+ROLE_ROLE_LIST: Dict[str, List[str]] = {
+    "Official":     [
+        "Admin",
+        "Judge",
+        "Wardenry",
+        "Technical"
+    ],
+    "Electorate":   [
+        "Left",
+        "Right",
+        "Anarchy",
+        "Extreme",
+        "Mild"
+    ],
+    "Identity":     [
+        "Temp",
+        "Citizen",
+        "Prisoner",
+        "Defendant",
+        "Accuser",
+        "Lawyer"
+    ]
 }
 CHANNEL_ID_LIST: Dict[str, int] = {
     "Jail":         0,
     "Court":        0,
     "Invite":       0,
-    "Election":     0
+    "Election":     0,
+    "Publish":      0
 }
 
 db: Optional[DB] = None
@@ -106,13 +136,14 @@ async def on_message(message: discord.Message):
         # Do something if the message is sent or created
         pass
 
-@bot.command(name="getguildid")
+@bot.tree.command(name="getguildid")
 @commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
-async def getguildid(ctx:discord.Context):
+async def getguildid(interaction: discord.Interaction):
     global guild_id
-    guild_id = await ctx.guild.id
+    guild_id = interaction.guild.id
     # await db.store_guild_id(guild_id)
+    await interaction.response.send_message(content=f"The Guild ID for {interaction.guild.name} has been set!", ephemeral=True)
 
 @bot.tree.command(name="setupchannel", description="Setup current channel for specific usage", guild=discord.Object(id=guild_id))
 @commands.has_permissions(administrator=True)
@@ -120,18 +151,31 @@ async def getguildid(ctx:discord.Context):
 async def setupchannel(interaction: discord.Interaction, channel_select: str):
     channel: Union[discord.abc.GuildChannel, discord.Thread] = interaction.channel
     channel_id: int = 0
+    stored: bool = False
     if isinstance(channel, discord.Thread):
         channel_id = channel.parent_id
     elif isinstance(channel, discord.abc.GuildChannel):
         channel_id = channel.id
     else:
         print("This channel is not for guilds!")
+    if channel_select in CHANNEL_ID_LIST.keys():
+        CHANNEL_ID_LIST[channel_select] = channel_id
+        stored = True
+    if stored and channel_id != 0:
+        await interaction.response.send_message(content=f"The channel ID for {channel_select} has been updated!", ephemeral=True)
+    else:
+        await interaction.response.send_message(content=f"ERROR: The channel ID for {channel_select} update failed!", ephemeral=True)
 
 @bot.tree.command(name="setuprole", description="Setup a specific role for specific usage", guild=discord.Object(id=guild_id))
 @commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
 async def setuprole(interaction: discord.Interaction, role_select: str, role: discord.Role):
-    pass
+    stored: bool = False
+    if role_select in ROLE_ID_LIST.keys():
+        ROLE_ID_LIST[role_select] = role.id
+        await interaction.response.send_message(content=f"SUCCESS: Role {role.name} is set as {role_select}!", ephemeral=True)
+    else:
+        await interaction.response.send_message(content=f"ERROR: Role {role_select} does not exist!", ephemeral=True)
 
 @bot.tree.command(name="punish", description="Issue punishment according to the court conclusion", guild=discord.Object(id=guild_id))
 @commands.has_any_role('法官')
@@ -149,6 +193,10 @@ async def timeout(interaction: discord.Interaction, user_to_ban: discord.Member)
     pass
 
 ######## UI raising command ########
+@bot.tree.command(name="callbot", description="Raise Bot UI", guild=discord.Object(id=guild_id))
+async def callbotUI(interaction: discord.Interaction):
+    await interaction.response.send_message(content=f"Please choose the action you want to take by pressing one of the button below:", view=(), ephemeral=True)
+
 @bot.tree.command()
 @commands.has_any_role('')
 async def election(interaction: discord.Interaction):
