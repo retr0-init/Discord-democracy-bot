@@ -15,12 +15,16 @@ from main import ROLE_ID_LIST, CHANNEL_ID_LIST
 - [x] UIElection needs to have choice filter based on previous selection
 - [x] Or use Select only and map the choice to the specific channel
 - [x] UIVote needs to send the message to convert it to view. Need to check how to do it properly.
-- [ ] UIVote manage vote according to the inputs and results
+- [x] UIVote manage vote according to the inputs and results
 - [x] UIRaiseElection: show channel selection after the role selection
 - [x] UIVoting: Update the UI view for the voting interface
-- [ ] Update the UI class that calls the UIVoting class.
+- [x] Update the UI class that calls the UIVoting class.
 - [ ] Update the database from the UIVoting class
-- [ ] Think about the Button implementation for the UIVoting class
+- [x] Think about the Button implementation for the UIVoting class
+- [x] Finish the Result Embed generation method
+- [ ] Finish the invite question pass determination method 
+- [ ] Automatically give role based on vote result and vote raise
+- [ ] Replace the technical admin position to propaganda admin
 '''
 
 class UIRaiseElectionElectionAbstract(discord.ui.Modal):
@@ -146,6 +150,10 @@ class UIVotingButton(discord.ui.Button):
         else:
             await interaction.response.send_message(content=f"You have already voted for {list(self.all_user_lists.keys())[list_bool.index(True)]}!", ephemeral=True)
         # TODO check user permission with the database check
+        await self.customCallback(interaction)
+
+    async def customCallback(self, interaction: discord.Interaction):
+        pass
 
 class UIVoting(discord.ui.View):
     
@@ -162,6 +170,8 @@ class UIVoting(discord.ui.View):
     jump_url: str
     buttons: List[UIVotingButton] = []
     clicked_users: List[int] = []
+
+    colour: List[Optional[discord.Colour]] = [None]
     # https://stackoverflow.com/questions/69265909/discord-py-edit-the-interaction-message-after-a-timeout-in-discord-ui-select
     message: Optional[discord.Message] = None
     thread: Optional[discord.Thread] = None
@@ -172,7 +182,10 @@ class UIVoting(discord.ui.View):
         "Waiver":   self.waiver
     }
 
-    async def __init__(self, vote_type: VoteTypeEnum, timeout: float):
+    async def __init__(self, vote_type: VoteTypeEnum, timeout: float = 604800.0):
+        '''
+        Default timeout of this is 7 days. Need to specify the date to be 3 days later (if the vote influence ratio is 0)
+        '''
         super().__init__(timeout=timeout)
         self.vote_type : VoteTypeEnum = vote_type
 
@@ -191,10 +204,42 @@ class UIVoting(discord.ui.View):
         await self.message.edit(view=self)
         await self.stop()
 
+    def determine_vote_pass(self) -> bool:
+        return len(self.agree) - len(self.against) >= 30
+
     async def on_timeout(self) -> None:
-        await self.message.channel.send("Time Out")
+        await self.message.channel.send(f"Time Out. The result of this vote is {'PASS' if self.determine_vote_pass() else 'NOT PASS'}. This thread will be archived and locked.")
         await self.disable_all_items()
+        await self.thread.edit(archived=True, locked=True, reason="The Vote completes. The thread is archived and locked.")
         # Then make the result from the voting result
+
+    @staticmethod
+    def determine_colour(vote_type: VoteTypeEnum) -> discord.Colour:
+        match vote_type:
+            case VoteTypeEnum.LegislationConstitution:
+                colour = discord.Colour.from_str("#0000FF")
+            case VoteTypeEnum.LegislationLaw:
+                colour = discord.Colour.from_str("#6666FF")
+            case VoteTypeEnum.LegislationAffair:
+                colour = discord.Colour.from_str("#CCCCFF")
+            case VoteTypeEnum.Justice:
+                colour = discord.Colour.from_str("#EED202")
+            case VoteTypeEnum.ElectionJudge:
+                colour = discord.Colour.from_str("#0066CC")
+            case VoteTypeEnum.ElectionAdmin:
+                colour = discord.Colour.from_str("#6600CC")
+            case VoteTypeEnum.ElectionWardenry:
+                colour = discord.Colour.from_str("#606060")
+            case VoteTypeEnum.ElectionTechnical:
+                colour = discord.Colour.from_str("#66CC00")
+            case VoteTypeEnum.Impeachment:
+                colour = discord.Colour.from_str("#FF0000")
+            case VoteTypeEnum.Invite:
+                colour = discord.Colour.from_str("#00FF00")
+            case _:
+                colour = discord.Colour.dark_grey
+
+            return colour
 
     @staticmethod
     def generate_embed(vote_type: VoteTypeEnum, vote_author: discord.Member, vote_message: str, member_against: Optional[discord.Member]) -> Optional[discord.Embed]:
@@ -258,8 +303,31 @@ class UIVoting(discord.ui.View):
             colour = colour
         )
 
+    @staticmethod
+    def generateResult(title: str, agreed: List[discord.Member], against: List[discord.Member], waiver: List[discord.Member], vote_type: VoteTypeEnum) -> discord.Embed:
+        decision: str = ""
+        if len(agreed) > len(against):
+            decision = "Agree"
+        elif len(agreed) < len(against):
+            decision = "Against"
+        elif len(agreed) == len(against):
+            decision = "Draw"
+        participant_count: int = len(agreed + against + waiver)
+        title: str = title
+        author: str = vote_type.value
+        description: str = f"The Vote has {len(agreed)} agree votes,  {len(against)} against votes, and {len(waiver)} waiver votes. So the decision of this vote is {decision}."
+        timestamp: str = datetime.datetime.now(datetime.timezone.utc).strftime("UTC %Y-%m-%d %H:%M:%S")
+        colour: discord.Colour = UIVoting.determine_colour(vote_type)
+        return discord.Embed(
+            title = title,
+            author = author,
+            description = description,
+            timestamp = timestamp,
+            colour = colour
+        )
+
 class UINewUserQuestions(discord.ui.View):
-    async def __init__(self, difficulty: UIQuestionDifficultyEnum):
+    async def __init__(self, difficulty: UIQuestionDifficultyEnum, user: Union[discord.Member, discord.User]):
         # Load questions
         '''Question list format example
         [
@@ -277,7 +345,8 @@ class UINewUserQuestions(discord.ui.View):
             ...
         ]
         '''
-        questions: List[Dict[str, Union[uuid.UUID, str, Dict[str, str], str]]] = await db.get_questions(difficulty)
+        self.questions: List[Dict[str, Union[uuid.UUID, str, Dict[str, str], str]]] = await db.get_questions(difficulty)
+        question_validaion: List[bool] = []
         # Randomise questions?
         '''Optional
         - [ ] Randomise the question list
@@ -286,17 +355,60 @@ class UINewUserQuestions(discord.ui.View):
         # TODO
 
         for question in questions:
-            self.add_item(discord.ui.Select(
-                custom_id = question["UUID"],
-                options = [discord.SelectOption(label=dictin[key], value=key) for key in dictin],
-                placeholder = question["Question"]
-            ))
+            _ = discord.ui.Select(
+                custom_id = f"{user.id}@{question["UUID"]}",
+                options = [discord.SelectOption(label=question["Choices"][key], value=key) for key in question["Choices"]],
+                placeholder = question["Question"],
+                disabled = False
+            )
+            _.callback = self.cbSelectValidateAnswer
+            self.add_item(_)
         
         '''TODO
         - [ ] Add callback to the buttons
         '''
-        self.add_item(discord.ui.Button(label="Submit", style=discord.ButtonStyle.success))
-        self.add_item(discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger))
+        submit: discord.ui.Button = discord.ui.Button(custom_id=f"{user.id}@question_submit", label="Submit", style=discord.ButtonStyle.success, disabled=True)
+        cancel: discord.ui.Button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, disabled=False)
+        submit.callback = self.buttonSubmit
+        cancel.callback = self.buttonCancel
+        self.add_item(submit)
+        self.add_item(cancel)
+
+    def determinePass(self) -> bool:
+        correct: int = len([i for i in self.question_validation if i])
+        incorrect: int = len([i for i in self.question_validation if not i])
+
+    async def cbSelectValidateAnswewr(self, interaction: discord.Interaction):
+        custom_id: str = interaction.data["custom_id"]
+        question: dict = None
+        for i in self.questions:
+            if i["UUID"] == custom_id:
+                question = i
+                break
+        for i in self.children:
+            if i.custom_id == custom_id:
+                i.disabled = True
+                choice: str = i.values[0]
+                i.placeholder = f"{'Correct ' if choice == question['Answer'] else 'Incorrect '}" + i.placeholder
+                break
+        select_options: List[discord.ui.select.Select] = [i for i in self.children if isinstance(i, discord.ui.select.Select) and i.disabled == False]
+        if len(select_options) == 0:
+            for i in self.children:
+                if i.custom_id.split('@')[-1] == "question_submit":
+                    i.disabled = False
+                    break
+        await interaction.response.edit_message(view=self)
+        self.question_validation.append(choice == question['Answer'])
+
+    async def buttonSubmit(self, interaction: discord.Interaction):
+        if self.determinePass():
+            await interaction.response.send_message(content="Congratulations! You pass the test!", ephemeral=True)
+        else:
+            await interaction.response.send_message(content="You failed!", ephemeral=True)
+
+    async def buttonCancel(self, interaction:discord.Interaction):
+        await interaction.response.defer()
+        await interaction.delete_original_response()
 
 def dictGetKeystrFromValue(d: Dict[str, Union[int, str]], value: Union[int, str]) -> str:
     return list(d.keys())[list(d.values()).index(value)]
