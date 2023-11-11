@@ -182,11 +182,12 @@ class UIVoting(discord.ui.View):
         "Waiver":   self.waiver
     }
 
-    async def __init__(self, vote_type: VoteTypeEnum, timeout: float = 604800.0):
+    async def __init__(self, vote_type: VoteTypeEnum, author: discord.Member, timeout: float = 604800.0):
         '''
         Default timeout of this is 7 days. Need to specify the date to be 3 days later (if the vote influence ratio is 0)
         '''
         super().__init__(timeout=timeout)
+        self.author = author
         self.vote_type : VoteTypeEnum = vote_type
 
         for vote_option in UIVotingButtonEnum:
@@ -211,6 +212,39 @@ class UIVoting(discord.ui.View):
         await self.message.channel.send(f"Time Out. The result of this vote is {'PASS' if self.determine_vote_pass() else 'NOT PASS'}. This thread will be archived and locked.")
         await self.disable_all_items()
         await self.thread.edit(archived=True, locked=True, reason="The Vote completes. The thread is archived and locked.")
+        name: str = ""
+        content: str = ""
+        match self.vote_type:
+            case VoteTypeEnum.ElectionJudge:
+                if self.determine_vote_pass():
+                    given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Judge"])
+                    await self.author.add_roles([given_role], reason = "Election completed. Judge role added to {}.".format(self.author.display_name))
+                name: str = f"{self.author.display_name} is {'' if self.determine_vote_pass() else 'NOT '}elected as Judge."
+                content: str = f""
+            case VoteTypeEnum.ElectionAdmin:
+                if self.determine_vote_pass():
+                    given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Admin"])
+                    await self.author.add_roles([given_role], reason = "Election completed. Admin role added to {}.".format(self.author.display_name))
+                name: str = f"{self.author.display_name} is elected as Admin."
+            case VoteTypeEnum.ElectionWardenry:
+                if self.determine_vote_pass():
+                    given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Wardenry"])
+                    await self.author.add_roles([given_role], reason = "Election completed. Wardenry role added to {}.".format(self.author.display_name))
+                name: str = f"{self.author.display_name} is elected as Wardenry."
+            case VoteTypeEnum.ElectionTechnical:
+                if self.determine_vote_pass():
+                    given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Technical"])
+                    await self.author.add_roles([given_role], reason = "Election completed. Technical role added to {}.".format(self.author.display_name))
+                name: str = f"{self.author.display_name} is elected as Technical."
+        channelPublish: discord.Channel = await self.message.guild.fetch_channel(CHANNEL_ID_LIST["Publish"])
+        await channelPublish.create_thread(
+            name = name,
+            content = "",
+            embed = discord.Embed(),
+            reason = "",
+            applied_tags = [],
+            file = discord.File()
+        )
         # Then make the result from the voting result
 
     @staticmethod
