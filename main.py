@@ -3,8 +3,10 @@ from discord.ext import tasks, commands
 import datetime
 from uuid import uuid4
 
-from db import DB
-from user_interface import UIRaiseElection, UINewUserQuestions
+#from db import DB
+from user_interface import UIRaiseElection, UINewUserQuestions, UIControlPanel
+
+TOKEN: str = "MTE1OTIyODAyNTA4MzI2OTIxMQ.GVI86N.z2uzJKkxEulUsXcol7eOZ40RpwODHw6XGhBYtk"
 
 '''References
 https://programtalk.com/vs4/python/yagomichalak/sloth-bot/main.py/
@@ -35,56 +37,10 @@ https://stackoverflow.com/questions/71165431/how-do-i-make-a-working-slash-comma
 
 bot: discord.ext.commands.Bot = commands.Bot(command_prefix='d!', intents=discord.Intents.all(), help_command=None, case_insensitive=True)
 
-guild_id: int = 0
-ROLE_ID_LIST: Dict[str, int] = {
-    "Admin":        0,
-    "Judge":        0,
-    "Wardenry":     0,
-    "Technical":    0,
-    "Left":         0,
-    "Right":        0,
-    "Anarchy":      0,
-    "Extreme":      0,
-    "Mild":         0,
-    "Temp":         0,
-    "Citizen":      0,
-    "Defendant":    0,
-    "Accuser":      0,
-    "Prisoner":     0,
-    "Lawyer":       0
-}
-ROLE_ROLE_LIST: Dict[str, List[str]] = {
-    "Official":     [
-        "Admin",
-        "Judge",
-        "Wardenry",
-        "Technical"
-    ],
-    "Electorate":   [
-        "Left",
-        "Right",
-        "Anarchy",
-        "Extreme",
-        "Mild"
-    ],
-    "Identity":     [
-        "Temp",
-        "Citizen",
-        "Prisoner",
-        "Defendant",
-        "Accuser",
-        "Lawyer"
-    ]
-}
-CHANNEL_ID_LIST: Dict[str, int] = {
-    "Jail":         0,
-    "Court":        0,
-    "Invite":       0,
-    "Election":     0,
-    "Publish":      0
-}
+guild_id: int = 1156709757625835681
 
-db: Optional[DB] = None
+
+db = None
 
 @bot.event
 async def on_ready():
@@ -92,7 +48,7 @@ async def on_ready():
     global db
     # guild_id = await db.get_guild_id()
     await bot.tree.sync(guild=discord.Object(id=guild_id))
-    db = await DB()
+    # db = await DB()
     print("Bot is ready!")
 
 @bot.event
@@ -179,11 +135,11 @@ async def setuprole(interaction: discord.Interaction, role_select: str, role: di
 
 @bot.tree.command(name="punish", description="Issue punishment according to the court conclusion", guild=discord.Object(id=guild_id))
 @commands.has_any_role('法官')
-async def punish(interaction: discord.Interaction, user_to_ban: discord.Member, time_to_ban: datetime):
+async def punish(interaction: discord.Interaction, user_to_ban: discord.Member, time_to_ban: int):
     # If this user and the judge are in the case, the judge will have the right to ban the member
     # Or this will be automatically done by the bot
     pass
-
+'''
 @bot.tree.command(name="timeout", description="", guild=discord.Object(id=guild_id))
 @commands.has_permissions()
 @commands.has_any_role('')
@@ -191,11 +147,11 @@ async def timeout(interaction: discord.Interaction, user_to_ban: discord.Member)
     # This will count the number of timeout of the member.
     # The time period will change according to the count
     pass
-
+'''
 ######## UI raising command ########
 @bot.tree.command(name="callbot", description="Raise Bot UI", guild=discord.Object(id=guild_id))
 async def callbotUI(interaction: discord.Interaction):
-    await interaction.response.send_message(content=f"Please choose the action you want to take by pressing one of the button below:", view=(), ephemeral=True)
+    await interaction.response.send_message(content=f"Please choose the action you want to take by pressing one of the button below:", view=UIControlPanel(interaction.user), ephemeral=True)
 
 @bot.tree.command()
 @commands.has_any_role('')
@@ -217,4 +173,4 @@ async def answer(interaction: discord.Interaction, difficulty: str):
         await interaction.response.send_message(ephemeral=True, content="Please enter the proper difficulty setting!")
 
 if __name__ == "__main__":
-    pass
+    bot.run(TOKEN)
