@@ -37,8 +37,13 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
     )
 
     def __init__(self, selected_role: str, author: discord.Member):
-        self.electoral: str = list(ROLE_ID_LIST.keys())[list(ROLE_ID_LIST.value()).index(author.role.id)]
-        title = f"{selected_role}{f' in {electoral} electorals' if selected_role == 'Admin' or selected_role == 'Judge' else ''}"
+        electorates: list = [ROLE_ID_LIST[i] for i in ROLE_ROLE_LIST["Electorate"]]
+        for i in author.roles:
+            if i.id in electorates:
+                role_id = i.id
+                break
+        self.electoral: str = list(ROLE_ID_LIST.keys())[list(ROLE_ID_LIST.values()).index(role_id)]
+        title = f"{selected_role}{f' in {self.electoral} electorals' if selected_role == 'Admin' or selected_role == 'Judge' else ''}"
         super().__init__(title=title)
         self.selected_role      : str = selected_role
         self.selected_channel   : str = self.electoral
@@ -51,22 +56,22 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
         #TODO complete the class init and method's parameters
         #TODO complete the election thread title and body
         #TODO add this voting to the database? Do it in the UIVoting class?
-        embed = UIVoting.generate_embed()
         if self.selected_role == "Admin":
             vote_type: VoteTypeEnum = VoteTypeEnum.ElectionAdmin
         elif self.selected_role == "Judge":
             vote_type: VoteTypeEnum = VoteTypeEnum.ElectionJudge
         elif self.selected_role == "Wardenry":
             vote_type: VoteTypeEnum = VoteTypeEnum.ElectionWardenry
-        elif self.selected_role == "Tecchnical":
+        elif self.selected_role == "Technical":
             vote_type: VoteTypeEnum = VoteTypeEnum.ElectionTechnical
         view: discord.View = UIVoting(vote_type=vote_type, author=interaction.user, timeout=604800.0)
+        embed = UIVoting.generate_embed(vote_type=vote_type, vote_author=interaction.user, vote_message=self.election_abstract.value)
         view.thread, view.message = await election_channel.create_thread(
-            name="title",                       # Election vote title
-            content="body",                     # Plain text body. Perbably not required.
-            embed=discord.Embed(),              # Rich text body 
+            name=f"{interaction.user.display_name} Election as {self.selected_role}",                       # Election vote title
+            content=None,                       # Plain text body. Perbably not required.
+            embed=embed,                        # Rich text body 
             view=view,                          # voting button view 
-            reason=f"Created Election - {self.selected_role_str}",
+            reason=f"Created Election - {self.selected_role}",
             slowmode_delay=1,                   # slow mode delay for 1 second
             applied_tags=[],
             auto_archive_duration=1440          # Auto archived period. Must be 1 hour (60), 1 day (1440), 3 days (4320) or 7 days (10080)
@@ -103,7 +108,8 @@ class UIRaiseElection(discord.ui.View):
     async def select_role(self, interaction: discord.Interaction, select_item: discord.ui.Select):
         selected_option : str = select_item.values[0]
         self.selected_role_str : str = selected_option
-        await interaction.response.send_modal(modal=UIRaiseElectionElectionAbstract(selected_role_str, self.author))
+        await interaction.response.send_modal(UIRaiseElectionElectionAbstract(self.selected_role_str, self.author))
+        # await interaction.delete_original_response()
     
 
 
@@ -172,17 +178,17 @@ class UIVotingButton(discord.ui.Button):
 
 class UIVoting(discord.ui.View):
     
-    id: uuid.UUID
-    created: datetime.datetime
-    expired: datetime.datetime
-    finished: bool
-    vote_type: VoteTypeEnum
-    voter_limited: bool
-    voters: Optional[List[Union[discord.User, discord.Member]]]
-    agree: List[Union[discord.User, discord.Member]]
-    against: List[Union[discord.User, discord.Member]]
-    waiver: List[Union[discord.User, discord.Member]]
-    jump_url: str
+    id: uuid.UUID = None
+    created: datetime.datetime = None
+    expired: datetime.datetime = None
+    finished: bool = False
+    vote_type: VoteTypeEnum = None
+    voter_limited: bool = False
+    voters: Optional[List[Union[discord.User, discord.Member]]] = []
+    agree: List[Union[discord.User, discord.Member]] = []
+    against: List[Union[discord.User, discord.Member]] = []
+    waiver: List[Union[discord.User, discord.Member]] = []
+    jump_url: str = ""
     buttons: List[UIVotingButton] = []
     clicked_users: List[int] = []
 
@@ -192,7 +198,7 @@ class UIVoting(discord.ui.View):
     thread: Optional[discord.Thread] = None
 
 
-    async def __init__(self, vote_type: VoteTypeEnum, author: discord.Member, timeout: float = 604800.0):
+    def __init__(self, vote_type: VoteTypeEnum, author: discord.Member, timeout: float = 604800.0):
         '''
         Default timeout of this is 7 days. Need to specify the date to be 3 days later (if the vote influence ratio is 0)
         '''
@@ -207,7 +213,7 @@ class UIVoting(discord.ui.View):
 
         for vote_option in UIVotingButtonEnum:
             label = vote_option.value
-            button = UIVotingButton(label=label, button_type=vote_option, custom_id=label, all_lists=self.vote_dict, row=2)
+            button = UIVotingButton(label=label, button_type=vote_option, custom_id=label, all_lists=self.vote_dict, vote_type=vote_type, row=2)
             self.buttons.append(button)
             self.add_item(button)
 
@@ -316,7 +322,7 @@ class UIVoting(discord.ui.View):
         return colour
 
     @staticmethod
-    def generate_embed(vote_type: VoteTypeEnum, vote_author: discord.Member, vote_message: str, member_against: Optional[discord.Member]) -> Optional[discord.Embed]:
+    def generate_embed(vote_type: VoteTypeEnum, vote_author: discord.Member, vote_message: str, member_against: Optional[discord.Member] = None) -> Optional[discord.Embed]:
         colour : discord.Colour = discord.Colour.light_grey
         author : str = "Invalid"
         title  : str = "Invalid"
@@ -371,7 +377,7 @@ class UIVoting(discord.ui.View):
                 title = f"New member vote for {vote_author.display_name}"
         return discord.Embed(
             title = title,
-            author = author,
+            #author = author,
             description = vote_message,
             timestamp = datetime.datetime.now(),
             colour = colour
@@ -483,21 +489,32 @@ class UINewUserQuestions(discord.ui.View):
         await interaction.response.defer()
         await interaction.delete_original_response()
 
-def dictGetKeystrFromValue(d: Dict[str, Union[int, str]], value: Union[int, str]) -> str:
-    return list(d.keys())[list(d.values()).index(value)]
+def dictGetKeystrFromRoleValue(d: Dict[str, Union[int, str]], value: Union[int, str]) -> str:
+    return list(d.keys())[list(d.values()).index(value.id)]
 
 class UIControlPanel(discord.ui.View):
     def __init__(self, member: discord.Member):
         super().__init__()
         role: List[discord.Role] = member.roles
-        self.roles: List[str] = [dictGetKeystrFromValue(ROLE_ID_LIST, x) for x in role]
+        self.roles: List[str] = [dictGetKeystrFromRoleValue(ROLE_ID_LIST, x) for x in role if x.name != "@everyone"]
         self.official_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Official"]]
         self.electorate_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Electorate"]]
         self.identity_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Identity"]]
-        if "Temp" in identity_roles:
+        if "Temp" in self.identity_roles:
             button1 = discord.ui.Button(label="Take test")
             button1.callback = self.raise_questions
-            return
+            self.add_item(button1)
+        elif "Prisoner" in self.identity_roles:
+            button1 = discord.ui.Button(label="File a plaint of grievance")
+            button1.callback = self.raise_appeal
+            self.add_item(button1)
+        else:
+            button1 = discord.ui.Button(label="Election")
+            button1.callback = self.raise_election
+            button2 = discord.ui.Button(label="Court")
+            button2.callback = self.raise_court
+            self.add_item(button1)
+            self.add_item(button2)
 
     async def disable_stop(self):
         for item in self.children:
@@ -505,17 +522,21 @@ class UIControlPanel(discord.ui.View):
         self.stop()
 
     async def raise_election(self, interaction: discord.Interaction):
-        await interaction.response.send_message(content="", view=UIRaiseVoting(), ephemeral=True)
+        await interaction.response.edit_message(content="Please select the role you want to be elected", view=UIRaiseElection(interaction.user))
         await self.disable_stop()
 
     async def raise_questions(self, interaction: discord.Interaction):
-        await interaction.response.send_message(content="", view=(), ephemeral=True)
+        await interaction.response.edit_message(content="", view=())
         await self.disable_stop()
 
     async def raise_court(self, interaction: discord.Interaction):
-        await interaction.response.send_message(content="", view=(), ephemeral=True)
+        await interaction.response.edit_message(content="Please select the user to be appealed and then enter the details", view=())
         await self.disable_stop()
 
     async def raise_appeal(self, interaction: discord.Interaction):
-        await interaction.response.send_message(content="", view=(), ephemeral=True)
+        await interaction.response.send_message(content="Please select the case you want to appeal.", view=(), ephemeral=True)
+        await self.disable_stop()
+
+    async def raise_impeachment(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(content="", view=())
         await self.disable_stop()

@@ -2,11 +2,19 @@ import discord
 from discord.ext import tasks, commands
 import datetime
 from uuid import uuid4
+import os
+import sys
+from typing import Optional
 
 #from db import DB
 from user_interface import UIRaiseElection, UINewUserQuestions, UIControlPanel
+from metadata import ROLE_ID_LIST, CHANNEL_ID_LIST, ROLE_ROLE_LIST
 
-TOKEN: str = "MTE1OTIyODAyNTA4MzI2OTIxMQ.GVI86N.z2uzJKkxEulUsXcol7eOZ40RpwODHw6XGhBYtk"
+TOKEN: Optional[str] = os.getenv('DISCORD_TOKEN')
+print(TOKEN)
+if TOKEN is None:
+    print("Please set the system variable 'DISCORD_TOKEN' to the bot secrets!")
+    sys.exit(1)
 
 '''References
 https://programtalk.com/vs4/python/yagomichalak/sloth-bot/main.py/
