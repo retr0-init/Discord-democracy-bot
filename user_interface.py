@@ -30,9 +30,9 @@ from metadata import ROLE_ID_LIST, CHANNEL_ID_LIST, ROLE_ROLE_LIST
 class UIRaiseElectionElectionAbstract(discord.ui.Modal):
 
     election_abstract = discord.ui.TextInput(
-        label = "What is your election abstract?",
+        label = "你的選舉大區?",
         style = discord.TextStyle.long,
-        placeholder = "Enter your election abstract here...",
+        placeholder = "輸入你的選舉大區...",
         required = True
     )
 
@@ -76,10 +76,10 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
             applied_tags=[],
             auto_archive_duration=1440          # Auto archived period. Must be 1 hour (60), 1 day (1440), 3 days (4320) or 7 days (10080)
         )
-        await interaction.response.edit_message(content=f"Thanks for participating the election as {self.selected_role}! Your election proposal has been sent to the election channel.", view=None)
+        await interaction.response.send_message(content=f"Thanks for participating the election as {self.selected_role}! Your election proposal has been sent to the election channel.", ephemeral=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message("Oops! Something went wrong. Please check the information enterred.", ephemeral=True)
+        await interaction.response.send_message("好像有什麼出錯了!請確認輸入資訊.", ephemeral=True)
         traceback.print_exception(type(error), error, error.__traceback__)
 
 
@@ -98,18 +98,18 @@ class UIRaiseElection(discord.ui.View):
     '''
     @discord.ui.select(
         options = [
-            discord.SelectOption(label="Admin",     value="Admin"),     # Role Admin
-            discord.SelectOption(label="Judge",     value="Judge"),     # Role Judge
+            discord.SelectOption(label="行政管理员",     value="Admin"),     # Role Admin
+            discord.SelectOption(label="法官",     value="Judge"),     # Role Judge
             discord.SelectOption(label="Technical", value="Technical"), # Role Technical
-            discord.SelectOption(label="Wardenry",  value="Wardenry")   # ardenry
+            discord.SelectOption(label="监狱管理员",  value="Wardenry")   # ardenry
         ],
-        placeholder = "Please select the role you want to be elected"
+        placeholder = "選擇你想要選的管理員"
     )
     async def select_role(self, interaction: discord.Interaction, select_item: discord.ui.Select):
         selected_option : str = select_item.values[0]
         self.selected_role_str : str = selected_option
         await interaction.response.send_modal(UIRaiseElectionElectionAbstract(self.selected_role_str, self.author))
-        # await interaction.delete_original_response()
+        await interaction.delete_original_response()
     
 
 
@@ -119,24 +119,24 @@ class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
         super().__init__()
         self.add_item(discord.ui.Select(
             options = [
-                discord.SelectOption(label="Normal",        value="Normal"),
-                discord.SelectOption(label="Guild Affairs", value="Guild Affairs"),
-                discord.SelectOption(label="Institution",   value="Institution"),
-                discord.SelectOption(label="Law",           value="Law")
+                discord.SelectOption(label="一般",        value="Normal"),
+                discord.SelectOption(label="公會事務", value="Guild Affairs"),
+                discord.SelectOption(label="Constitution",   value="Institution"),
+                discord.SelectOption(label="法律",           value="Law")
             ],
-            placeholder = "Please select the type of this vote"
+            placeholder = "選擇投票的類型"
         ))
         self.add_item(discord.ui.TextInput(
             label = "What is the question of your raised vote?",
-            placeholder = "Enter your vote question here...",
+            placeholder = "輸入你對投票的問題...",
             required = True
         ))
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Thanks for submitting your vote, {self.name.value}", ephemeral=True)
+        await interaction.response.send_message(f"感謝你的投票, {self.name.value}", ephemeral=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message("Oops! Something went wrong. Please check the information enterred.", ephemeral=True)
+        await interaction.response.send_message("好像有什麼出錯了!請確認輸入資訊.", ephemeral=True)
         traceback.print_exception(type(error), error, error.__traceback__)
     pass
 
@@ -159,17 +159,18 @@ class UIVotingButton(discord.ui.Button):
         super().__init__(label=label, style=style, custom_id=custom_id, row=row)
 
     async def callback(self, interaction: discord.Interaction):
-        assert self.view is not None
+        # assert self.view is not None
         view: UIVoting = self.view
         buttons = view.buttons
         vote_type: VoteTypeEnum = view.vote_type
         user: Union[discord.User, discord.Member] = interaction.user
         list_bool: List[bool] = [user in x for x in self.all_user_lists]
+        print(vote_type, user, list_bool)
         if not any(list_bool):
             self.users.append(user)
-            await interaction.response.send_message(content=f"You voted as {self.vote_type.value}", ephemeral=True)
+            await interaction.response.send_message(content=f"你投的票是{self.vote_type.value}", ephemeral=True)
         else:
-            await interaction.response.send_message(content=f"You have already voted for {list(self.all_user_lists.keys())[list_bool.index(True)]}!", ephemeral=True)
+            await interaction.response.send_message(content=f"你已經投過{list(self.all_user_lists.keys())[list_bool.index(True)]}!", ephemeral=True)
         # TODO check user permission with the database check
         await self.customCallback(interaction)
 
@@ -216,10 +217,10 @@ class UIVoting(discord.ui.View):
             button = UIVotingButton(label=label, button_type=vote_option, custom_id=label, all_lists=self.vote_dict, vote_type=vote_type, row=2)
             self.buttons.append(button)
             self.add_item(button)
-
+    '''
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         pass
-
+    '''
     async def disable_all_items(self):
         for item in self.children:
             item.disabled = True
@@ -230,7 +231,7 @@ class UIVoting(discord.ui.View):
         return len(self.agree) - len(self.against) >= 30
 
     async def on_timeout(self) -> None:
-        await self.message.channel.send(f"Time Out. The result of this vote is {'PASS' if self.determine_vote_pass() else 'NOT PASS'}. This thread will be archived and locked.")
+        await self.message.channel.send(f"超出時間.投票的結果{'已通過' if self.determine_vote_pass() else '還沒通過'}. 此串將會被記錄跟鎖定.")
         await self.disable_all_items()
         await self.thread.edit(archived=True, locked=True, reason="The Vote completes. The thread is archived and locked.")
         name: str = ""
@@ -245,7 +246,7 @@ class UIVoting(discord.ui.View):
                 name: str = f"{self.author.display_name} is {'' if self.determine_vote_pass() else 'NOT '}elected as Judge."
                 content: str = f"Judge Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
-                    description = f"# Decision: @{self.author.mention} is {'NOT ' if not self.determine_vote_pass() else ''}elected as Judge.\n## Agree: {len(self.agree)}\n## Disagree: {len(self.against)}\n## Waiver: {len(self.waiver)}",
+                    description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為法官.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
                 reason = "Election Judge result is published."
@@ -256,7 +257,7 @@ class UIVoting(discord.ui.View):
                 name: str = f"{self.author.display_name} is elected as Admin."
                 content: str = f"Admin Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
-                    description = f"# Decision: @{self.author.mention} is {'NOT ' if not self.determine_vote_pass() else ''}elected as Admin.\n## Agree: {len(self.agree)}\n## Disagree: {len(self.against)}\n## Waiver: {len(self.waiver)}",
+                    description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為行政管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
                 reason = "Election Admin result is published."
@@ -267,7 +268,7 @@ class UIVoting(discord.ui.View):
                 name: str = f"{self.author.display_name} is elected as Wardenry."
                 content: str = f"Wardenry Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
-                    description = f"# Decision: @{self.author.mention} is {'NOT ' if not self.determine_vote_pass() else ''}elected as Wardenry.\n## Agree: {len(self.agree)}\n## Disagree: {len(self.against)}\n## Waiver: {len(self.waiver)}",
+                    description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為監獄管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
                 reason = "Election Wardenry result is published."
@@ -278,7 +279,7 @@ class UIVoting(discord.ui.View):
                 name: str = f"{self.author.display_name} is elected as Technical."
                 content: str = f"Technical Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
-                    description = f"# Decision: @{self.author.mention} is {'NOT ' if not self.determine_vote_pass() else ''}elected as Technical.\n## Agree: {len(self.agree)}\n## Disagree: {len(self.against)}\n## Waiver: {len(self.waiver)}",
+                    description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為技術管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
                 reason = "Election Technical result is published."
@@ -446,8 +447,8 @@ class UINewUserQuestions(discord.ui.View):
         '''TODO
         - [ ] Add callback to the buttons
         '''
-        submit: discord.ui.Button = discord.ui.Button(custom_id=f"{user.id}@question_submit", label="Submit", style=discord.ButtonStyle.success, disabled=True)
-        cancel: discord.ui.Button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, disabled=False)
+        submit: discord.ui.Button = discord.ui.Button(custom_id=f"{user.id}@question_submit", label="發送", style=discord.ButtonStyle.success, disabled=True)
+        cancel: discord.ui.Button = discord.ui.Button(label="取消", style=discord.ButtonStyle.danger, disabled=False)
         submit.callback = self.buttonSubmit
         cancel.callback = self.buttonCancel
         self.add_item(submit)
@@ -481,9 +482,9 @@ class UINewUserQuestions(discord.ui.View):
 
     async def buttonSubmit(self, interaction: discord.Interaction):
         if self.determinePass():
-            await interaction.response.send_message(content="Congratulations! You pass the test!", ephemeral=True)
+            await interaction.response.send_message(content="恭喜你通過了測驗!", ephemeral=True)
         else:
-            await interaction.response.send_message(content="You failed!", ephemeral=True)
+            await interaction.response.send_message(content="你沒通過!", ephemeral=True)
 
     async def buttonCancel(self, interaction:discord.Interaction):
         await interaction.response.defer()
@@ -501,17 +502,17 @@ class UIControlPanel(discord.ui.View):
         self.electorate_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Electorate"]]
         self.identity_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Identity"]]
         if "Temp" in self.identity_roles:
-            button1 = discord.ui.Button(label="Take test")
+            button1 = discord.ui.Button(label="做個測驗")
             button1.callback = self.raise_questions
             self.add_item(button1)
         elif "Prisoner" in self.identity_roles:
-            button1 = discord.ui.Button(label="File a plaint of grievance")
+            button1 = discord.ui.Button(label="上交申訴書")
             button1.callback = self.raise_appeal
             self.add_item(button1)
         else:
-            button1 = discord.ui.Button(label="Election")
+            button1 = discord.ui.Button(label="選舉")
             button1.callback = self.raise_election
-            button2 = discord.ui.Button(label="Court")
+            button2 = discord.ui.Button(label="法庭")
             button2.callback = self.raise_court
             self.add_item(button1)
             self.add_item(button2)
@@ -534,7 +535,7 @@ class UIControlPanel(discord.ui.View):
         await self.disable_stop()
 
     async def raise_appeal(self, interaction: discord.Interaction):
-        await interaction.response.send_message(content="Please select the case you want to appeal.", view=(), ephemeral=True)
+        await interaction.response.send_message(content="請選擇你要申訴的案件", view=(), ephemeral=True)
         await self.disable_stop()
 
     async def raise_impeachment(self, interaction: discord.Interaction):
