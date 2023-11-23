@@ -1,6 +1,7 @@
 import discord
 import traceback
 import os
+import asyncio
 
 import uuid
 import datetime
@@ -30,9 +31,9 @@ from metadata import ROLE_ID_LIST, CHANNEL_ID_LIST, ROLE_ROLE_LIST
 class UIRaiseElectionElectionAbstract(discord.ui.Modal):
 
     election_abstract = discord.ui.TextInput(
-        label = "你的選舉大區?",
+        label = "你的選舉綱領是？",
         style = discord.TextStyle.long,
-        placeholder = "輸入你的選舉大區...",
+        placeholder = "輸入你的選舉綱領...",
         required = True
     )
 
@@ -62,8 +63,8 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
             vote_type: VoteTypeEnum = VoteTypeEnum.ElectionJudge
         elif self.selected_role == "Wardenry":
             vote_type: VoteTypeEnum = VoteTypeEnum.ElectionWardenry
-        elif self.selected_role == "Technical":
-            vote_type: VoteTypeEnum = VoteTypeEnum.ElectionTechnical
+        elif self.selected_role == "Propaganda":
+            vote_type: VoteTypeEnum = VoteTypeEnum.ElectionPropaganda
         view: discord.View = UIVoting(vote_type=vote_type, author=interaction.user, timeout=604800.0)
         embed = UIVoting.generate_embed(vote_type=vote_type, vote_author=interaction.user, vote_message=self.election_abstract.value)
         view.thread, view.message = await election_channel.create_thread(
@@ -77,6 +78,9 @@ class UIRaiseElectionElectionAbstract(discord.ui.Modal):
             auto_archive_duration=1440          # Auto archived period. Must be 1 hour (60), 1 day (1440), 3 days (4320) or 7 days (10080)
         )
         await interaction.response.send_message(content=f"Thanks for participating the election as {self.selected_role}! Your election proposal has been sent to the election channel.", ephemeral=True)
+
+        await asyncio.sleep(60*60*24*3)
+        await view.on_timeout()
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message("好像有什麼出錯了!請確認輸入資訊.", ephemeral=True)
@@ -100,7 +104,7 @@ class UIRaiseElection(discord.ui.View):
         options = [
             discord.SelectOption(label="行政管理员",     value="Admin"),     # Role Admin
             discord.SelectOption(label="法官",     value="Judge"),     # Role Judge
-            discord.SelectOption(label="Technical", value="Technical"), # Role Technical
+            discord.SelectOption(label="Propaganda", value="Propaganda"), # Role Propaganda
             discord.SelectOption(label="监狱管理员",  value="Wardenry")   # ardenry
         ],
         placeholder = "選擇你想要選的管理員"
@@ -141,10 +145,12 @@ class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
     pass
 
 class UIVotingButton(discord.ui.Button):
-    def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, vote_type: VoteTypeEnum, all_lists: Dict[str, List[Union[discord.user, discord.Member]]], row: Optional[int] = None):
+    def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, vote_type: VoteTypeEnum, all_lists: Dict[str, List[Union[discord.user, discord.Member]]], row: Optional[int] = None, electorate: Optional[discord.Role] = None):
         self.vote_type: VoteTypeEnum = vote_type
+        self.button_type: UIVotingButtonEnum = button_type
         self.users: List[discord.Member] = all_lists[button_type.value]
         self.all_user_lists: Dict[str, List[discord.Member]] = all_lists
+        self.electorate: Optional[discord.Role] = electorate
         match button_type:
             case UIVotingButtonEnum.Agree:
                 style = discord.ButtonStyle.success
@@ -164,11 +170,16 @@ class UIVotingButton(discord.ui.Button):
         buttons = view.buttons
         vote_type: VoteTypeEnum = view.vote_type
         user: Union[discord.User, discord.Member] = interaction.user
-        list_bool: List[bool] = [user in x for x in self.all_user_lists]
+        list_bool: List[bool] = [user in x for x in self.all_user_lists.values()]
         print(vote_type, user, list_bool)
         if not any(list_bool):
-            self.users.append(user)
-            await interaction.response.send_message(content=f"你投的票是{self.vote_type.value}", ephemeral=True)
+            match vote_type:
+                case VoteTypeEnum.ElectionAdmin | VoteTypeEnum.ElectionJudge | VoteTypeEnum.ElectionPropaganda | VoteTypeEnum.ElectionWardenry:
+                    if self.electorate in user.roles:
+                        self.users.append(user)
+                        await interaction.response.send_message(content=f"你投的票是{self.button_type.name}", ephemeral=True)
+                    else:
+                        await interaction.response.send_message(content=f"You do not belong to this electorate.", ephemeral=True)
         else:
             await interaction.response.send_message(content=f"你已經投過{list(self.all_user_lists.keys())[list_bool.index(True)]}!", ephemeral=True)
         # TODO check user permission with the database check
@@ -199,7 +210,7 @@ class UIVoting(discord.ui.View):
     thread: Optional[discord.Thread] = None
 
 
-    def __init__(self, vote_type: VoteTypeEnum, author: discord.Member, timeout: float = 604800.0):
+    def __init__(self, vote_type: VoteTypeEnum, author: discord.Member, timeout: float = 100.0):
         '''
         Default timeout of this is 7 days. Need to specify the date to be 3 days later (if the vote influence ratio is 0)
         '''
@@ -211,26 +222,25 @@ class UIVoting(discord.ui.View):
         }
         self.author = author
         self.vote_type : VoteTypeEnum = vote_type
+        self.author_electorate: discord.Role = [j for j in [author.guild.get_role(ROLE_ID_LIST[i]) for i in ROLE_ROLE_LIST["Electorate"]] if j in self.author.roles][0]
 
         for vote_option in UIVotingButtonEnum:
             label = vote_option.value
-            button = UIVotingButton(label=label, button_type=vote_option, custom_id=label, all_lists=self.vote_dict, vote_type=vote_type, row=2)
+            button = UIVotingButton(label=label, button_type=vote_option, custom_id=None, all_lists=self.vote_dict, vote_type=vote_type, row=2, electorate=self.author_electorate)
             self.buttons.append(button)
             self.add_item(button)
-    '''
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        pass
-    '''
+
     async def disable_all_items(self):
         for item in self.children:
             item.disabled = True
         await self.message.edit(view=self)
-        await self.stop()
+        self.stop()
 
     def determine_vote_pass(self) -> bool:
         return len(self.agree) - len(self.against) >= 30
 
-    async def on_timeout(self) -> None:
+    async def on_timeout(self):
+        print("TIMEOUT TIMEOUT")
         await self.message.channel.send(f"超出時間.投票的結果{'已通過' if self.determine_vote_pass() else '還沒通過'}. 此串將會被記錄跟鎖定.")
         await self.disable_all_items()
         await self.thread.edit(archived=True, locked=True, reason="The Vote completes. The thread is archived and locked.")
@@ -238,60 +248,64 @@ class UIVoting(discord.ui.View):
         content: str = ""
         embed: discord.Embed = discord.Embed()
         reason: str = ""
+        influence_ratio = len(self.agree + self.against + self.waiver) / self.thread.guild.member_count
         match self.vote_type:
             case VoteTypeEnum.ElectionJudge:
                 if self.determine_vote_pass():
                     given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Judge"])
-                    await self.author.add_roles([given_role], reason = "Election completed. Judge role added to {}.".format(self.author.display_name))
+                    await self.author.add_roles(given_role, reason = "Election completed. Judge role added to {}.".format(self.author.display_name))
                 name: str = f"{self.author.display_name} is {'' if self.determine_vote_pass() else 'NOT '}elected as Judge."
-                content: str = f"Judge Election completes. The result is:"
+                content: str = f"投票率：{influence_ratio}\nJudge Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
-                    description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為法官.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
+                    description = f"# 結果: {self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為法官.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
                 reason = "Election Judge result is published."
             case VoteTypeEnum.ElectionAdmin:
                 if self.determine_vote_pass():
                     given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Admin"])
-                    await self.author.add_roles([given_role], reason = "Election completed. Admin role added to {}.".format(self.author.display_name))
+                    await self.author.add_roles(given_role, reason = "Election completed. Admin role added to {}.".format(self.author.display_name))
                 name: str = f"{self.author.display_name} is elected as Admin."
-                content: str = f"Admin Election completes. The result is:"
+                content: str = f"投票率：{influence_ratio}\nAdmin Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
-                    description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為行政管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
+                    description = f"# 結果: {self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為行政管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
                 reason = "Election Admin result is published."
             case VoteTypeEnum.ElectionWardenry:
                 if self.determine_vote_pass():
                     given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Wardenry"])
-                    await self.author.add_roles([given_role], reason = "Election completed. Wardenry role added to {}.".format(self.author.display_name))
+                    await self.author.add_roles(given_role, reason = "Election completed. Wardenry role added to {}.".format(self.author.display_name))
                 name: str = f"{self.author.display_name} is elected as Wardenry."
-                content: str = f"Wardenry Election completes. The result is:"
+                content: str = f"投票率：{influence_ratio}\nWardenry Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
-                    description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為監獄管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
+                    description = f"# 結果: {self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為監獄管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
                 reason = "Election Wardenry result is published."
-            case VoteTypeEnum.ElectionTechnical:
+            case VoteTypeEnum.ElectionPropaganda:
                 if self.determine_vote_pass():
-                    given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Technical"])
-                    await self.author.add_roles([given_role], reason = "Election completed. Technical role added to {}.".format(self.author.display_name))
-                name: str = f"{self.author.display_name} is elected as Technical."
-                content: str = f"Technical Election completes. The result is:"
+                    given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Propaganda"])
+                    await self.author.add_roles(given_role, reason = "Election completed. Propaganda role added to {}.".format(self.author.display_name))
+                name: str = f"{self.author.display_name} is elected as Propaganda."
+                content: str = f"投票率：{influence_ratio}\nPropaganda Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
                     description = f"# 結果: @{self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為技術管理員.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
                     timestamp = datetime.datetime.now()
                 )
-                reason = "Election Technical result is published."
+                reason = "Election Propaganda result is published."
         channelPublish: discord.Channel = await self.message.guild.fetch_channel(CHANNEL_ID_LIST["Publish"])
         await channelPublish.create_thread(
             name = name,
-            content = "",
+            content = content,
             embed = embed,
             reason = reason,
             applied_tags = [],
-            file = discord.File()
+            #file = discord.File()
         )
+        self.agree.clear()
+        self.against.clear()
+        self.waiver.clear()
         # Then make the result from the voting result
 
     @staticmethod
@@ -311,7 +325,7 @@ class UIVoting(discord.ui.View):
                 colour = discord.Colour.from_str("#6600CC")
             case VoteTypeEnum.ElectionWardenry:
                 colour = discord.Colour.from_str("#606060")
-            case VoteTypeEnum.ElectionTechnical:
+            case VoteTypeEnum.ElectionPropaganda:
                 colour = discord.Colour.from_str("#66CC00")
             case VoteTypeEnum.Impeachment:
                 colour = discord.Colour.from_str("#FF0000")
@@ -361,10 +375,10 @@ class UIVoting(discord.ui.View):
                 author = "Wardenry Election"
                 colour = discord.Colour.from_str("#606060")
                 title = f"{vote_author.display_name} Wardenry Election @{vote_author.mention}"
-            case VoteTypeEnum.ElectionTechnical:
-                author = "Technical Election"
+            case VoteTypeEnum.ElectionPropaganda:
+                author = "Propaganda Election"
                 colour = discord.Colour.from_str("#66CC00")
-                title = f"{vote_author.display_name} Technical Election @{vote_author.mention}"
+                title = f"{vote_author.display_name} Propaganda Election @{vote_author.mention}"
             case VoteTypeEnum.Impeachment:
                 if member_against is None:
                     print("The member to against is not provided!")
@@ -490,32 +504,113 @@ class UINewUserQuestions(discord.ui.View):
         await interaction.response.defer()
         await interaction.delete_original_response()
 
+class UISelectLaw(discord.ui.Select):
+    def __init__(self, message: discord.Message, laws: List[str]):
+        super().__init__()
+        self.message_reported = message
+        for law in laws:
+            self.add_option(label=law)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(UIModalCourtDetails(self.message_reported, self.values[0], discord.Embed()))
+        await interaction.delete_original_response()
+
+class UIViewCourt(discord.ui.View):
+    def __init__(self, court_stage: CaseStepEnum):
+        super().__init__()
+        self.agree: List[discord.Member] = []
+        self.against : List[discord.Member] = []
+        user_list: dict = {"Agree": self.agree, "Against": self.against}
+        match court_stage:
+            case CaseStepEnum.First:
+                pass
+            case CaseStepEnum.Second:
+                self.add_item(UIVotingButton("Agree", UIVotingButtonEnum.Agree, None, VoteTypeEnum.Justice, user_list, row = 2))
+                self.add_item(UIVotingButton("Against", UIVotingButtonEnum.Against, None, VoteTypeEnum.Justice, user_list, row = 2))
+                pass
+
+    async def close_case(self, interaction: discord.Interaction):
+        for item in self.children:
+            item.disabled = True
+        await interaction.channel.starter_message.edit(view=self)
+        await interaction.response.send_message("This case is closed.")
+        interaction.channel.locked = True
+        self.stop()
+
+class UIModalCourtDetails(discord.ui.Modal):
+    details: discord.ui.TextInput = discord.ui.TextInput(
+        label = "Please enter the details of this appeal. The message you want to report will appear in the court as the evidence.",
+        style = discord.TextStyle.long,
+        required = True,
+        placeholder = "Please enter the details of this appeal..."
+    )
+
+    def __init__(self, message: discord.Message, law: str, law_embed: discord.Embed):
+        super().__init__()
+        self.message_reported: discord.Message = message
+        self.law: str = law
+        self.law_embed: discord.Embed = law_embed
+
+    async def on_submit(self, interaction):
+        channel = await interaction.guild.fetch_channel(CHANNEL_ID_LIST["Court"])
+        await channel.create_thread(
+            name = f"{interaction.user.display_name} V.s. {self.message_reported.author.display_name} {datetime.datetime.now(datetime.timezone.utc).strftime('UTC%Y%m%d%H%M%S')}",
+            content = f'''Time (UTC): {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")}
+            Appealor: {interaction.user.mention}
+            Appealee: {self.message_reported.author.mention}
+            Law Offense: {self.law}
+            Message reported: 
+            - Link: {self.message_reported.jump_url}
+            - Author: {self.message_reported.author.mention}
+            - Content: {self.message_reported.content}
+            Details: {self.details.value}
+
+            All judges please attend and host this court. {interaction.guild.get_role(ROLE_ID_LIST["Judge"]).mention}
+            ''',
+            embed = self.law_embed,
+            view = UIViewCourt(CaseStepEnum.First),
+            auto_archive_duration = 1440,   # Archive this post after 24 hours
+            reason = f"Court {interaction.user.id} V.S. {self.message_reported.author.id} on message {self.message_reported.jump_url} whose content is [{self.message_reported.content}]."
+        )
+        await interaction.response.send_message(content="The court thread has already been created!", ephemeral=True)
+
 def dictGetKeystrFromRoleValue(d: Dict[str, Union[int, str]], value: Union[int, str]) -> str:
     return list(d.keys())[list(d.values()).index(value.id)]
 
 class UIControlPanel(discord.ui.View):
-    def __init__(self, member: discord.Member):
+    def __init__(self, member: discord.Member, channel: Union[discord.abc.GuildChannel, discord.Thread]):
         super().__init__()
         role: List[discord.Role] = member.roles
-        self.roles: List[str] = [dictGetKeystrFromRoleValue(ROLE_ID_LIST, x) for x in role if x.name != "@everyone"]
+        self.roles: List[str] = []#[dictGetKeystrFromRoleValue(ROLE_ID_LIST, x) for x in role if x.name != "@everyone"]
+        for x in role:
+            if x.name != "@everyone":
+                try:
+                    self.roles.append(dictGetKeystrFromRoleValue(ROLE_ID_LIST, x))
+                except:
+                    pass
         self.official_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Official"]]
         self.electorate_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Electorate"]]
         self.identity_roles: List[str] = [x for x in self.roles if x in ROLE_ROLE_LIST["Identity"]]
         if "Temp" in self.identity_roles:
             button1 = discord.ui.Button(label="做個測驗")
             button1.callback = self.raise_questions
-            self.add_item(button1)
+            #self.add_item(button1)
         elif "Prisoner" in self.identity_roles:
             button1 = discord.ui.Button(label="上交申訴書")
             button1.callback = self.raise_appeal
-            self.add_item(button1)
+            #self.add_item(button1)
+        elif "Judge" in self.identity_roles and isinstance(channel, discord.Thread) and not isinstance(channel.parent, None):
+            if channel.parent.id == CHANNEL_ID_LIST["Court"]:
+                button1 = discord.ui.Button(label="Close Court")
+                button.callback = self.close_court
+                #self.add_item(button1)
         else:
             button1 = discord.ui.Button(label="選舉")
             button1.callback = self.raise_election
             button2 = discord.ui.Button(label="法庭")
             button2.callback = self.raise_court
             self.add_item(button1)
-            self.add_item(button2)
+            # self.add_item(button2)
 
     async def disable_stop(self):
         for item in self.children:
@@ -523,7 +618,12 @@ class UIControlPanel(discord.ui.View):
         self.stop()
 
     async def raise_election(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content="Please select the role you want to be elected", view=UIRaiseElection(interaction.user))
+        if len([i for i in [ROLE_ID_LIST[j] for j in ROLE_ROLE_LIST["Electorate"]] if interaction.guild.get_role(i) in interaction.user.roles]) == 0:
+            await interaction.response.edit_message(content="請您先選擇選區", view=None)
+        elif len([i for i in [ROLE_ID_LIST[j] for j in ROLE_ROLE_LIST["Official"]] if interaction.guild.get_role(i) in interaction.user.roles]) == 0:
+            await interaction.response.edit_message(content="選擇你要選的職位", view=UIRaiseElection(interaction.user))
+        else:
+            await interaction.response.edit_message(content="您已經是管理，不能參與選舉", view=None)
         await self.disable_stop()
 
     async def raise_questions(self, interaction: discord.Interaction):
@@ -531,8 +631,11 @@ class UIControlPanel(discord.ui.View):
         await self.disable_stop()
 
     async def raise_court(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content="Please select the user to be appealed and then enter the details", view=())
+        await interaction.response.edit_message(content="請選擇你要申訴的人然後輸入細節", view=())
         await self.disable_stop()
+
+    async def close_court(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(content="The court is closed", eohemeral=True)
 
     async def raise_appeal(self, interaction: discord.Interaction):
         await interaction.response.send_message(content="請選擇你要申訴的案件", view=(), ephemeral=True)

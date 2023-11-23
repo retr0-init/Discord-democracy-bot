@@ -4,6 +4,7 @@ ROLE_ID_LIST: Dict[str, int] = {
     "Admin":        0,
     "Judge":        0,
     "Wardenry":     0,
+    "Propaganda":   0,
     "Technical":    0,
     "Left":         0,
     "Right":        0,
@@ -22,6 +23,7 @@ ROLE_ROLE_LIST: Dict[str, List[str]] = {
         "Admin",
         "Judge",
         "Wardenry",
+        "Propaganda",
         "Technical"
     ],
     "Electorate":   [

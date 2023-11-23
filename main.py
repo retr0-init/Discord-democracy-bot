@@ -10,6 +10,8 @@ from typing import Optional
 from user_interface import UIRaiseElection, UINewUserQuestions, UIControlPanel
 from metadata import ROLE_ID_LIST, CHANNEL_ID_LIST, ROLE_ROLE_LIST
 
+from db_model import db
+
 TOKEN: Optional[str] = os.getenv('DISCORD_TOKEN')
 print(TOKEN)
 if TOKEN is None:
@@ -48,15 +50,15 @@ bot: discord.ext.commands.Bot = commands.Bot(command_prefix='d!', intents=discor
 guild_id: int = 1156709757625835681
 
 
-db = None
+# db = None
 
 @bot.event
 async def on_ready():
+    #await db.init()
     global guild_id
-    global db
-    # guild_id = await db.get_guild_id()
+    #guild_ids = await db.get_guild_id()
+    #for guild_id in guild_ids:
     await bot.tree.sync(guild=discord.Object(id=guild_id))
-    # db = await DB()
     print("Bot is ready!")
 
 @bot.event
@@ -88,6 +90,7 @@ async def on_member_remove(member: discord.Member):
     # Randomly select another member if the quit member is in a case
     pass
 
+'''
 @bot.event
 async def on_member_update(member: discord.Member):
     # When the role / nickname etc changed
@@ -99,20 +102,28 @@ async def on_message(message: discord.Message):
     if message_author.bot is False:
         # Do something if the message is sent or created
         pass
+'''
 
-@bot.tree.command(name="getguildid")
+@bot.command(name="getguildid")
 @commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
-async def getguildid(interaction: discord.Interaction):
+async def getguildid(ctx: discord.ext.commands.Context):
+    if discord.utils.get(ctx.guild.roles, name="服务器机器人开发") not in ctx.author.roles:
+        await interaction.send(content="You are not the robot maintainer in this channel!", ephemeral=True)
+        return
     global guild_id
-    guild_id = interaction.guild.id
-    # await db.store_guild_id(guild_id)
-    await interaction.response.send_message(content=f"The Guild ID for {interaction.guild.name} has been set!", ephemeral=True)
+    guild_id = ctx.guild.id
+    print(guild_id)
+    #await db.store_guild_id(guild_id)
+    await ctx.send(content=f"The Guild ID for {ctx.guild.name} has been set!", ephemeral=True)
 
 @bot.tree.command(name="setupchannel", description="Setup current channel for specific usage", guild=discord.Object(id=guild_id))
 @commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
 async def setupchannel(interaction: discord.Interaction, channel_select: str):
+    if discord.utils.get(interaction.guild.roles, name="服务器机器人开发") not in interaction.user.roles:
+        await interaction.response.send_message(content="You are not the robot maintainer in this channel!", ephemeral=True)
+        return
     channel: Union[discord.abc.GuildChannel, discord.Thread] = interaction.channel
     channel_id: int = 0
     stored: bool = False
@@ -126,6 +137,7 @@ async def setupchannel(interaction: discord.Interaction, channel_select: str):
         CHANNEL_ID_LIST[channel_select] = channel_id
         stored = True
     if stored and channel_id != 0:
+        # await db.upsert_channel(guild_id, channel_select, channel_id)
         await interaction.response.send_message(content=f"The channel ID for {channel_select} has been updated!", ephemeral=True)
     else:
         await interaction.response.send_message(content=f"ERROR: The channel ID for {channel_select} update failed!", ephemeral=True)
@@ -134,20 +146,25 @@ async def setupchannel(interaction: discord.Interaction, channel_select: str):
 @commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
 async def setuprole(interaction: discord.Interaction, role_select: str, role: discord.Role):
+    if discord.utils.get(interaction.guild.roles, name="服务器机器人开发") not in interaction.user.roles:
+        await interaction.response.send_message(content="You are not the robot maintainer in this channel!", ephemeral=True)
+        return
     stored: bool = False
     if role_select in ROLE_ID_LIST.keys():
         ROLE_ID_LIST[role_select] = role.id
+        # await db.upsert_role(guild_id, role_select, role.id)
         await interaction.response.send_message(content=f"SUCCESS: Role {role.name} is set as {role_select}!", ephemeral=True)
     else:
         await interaction.response.send_message(content=f"ERROR: Role {role_select} does not exist!", ephemeral=True)
 
+'''
 @bot.tree.command(name="punish", description="Issue punishment according to the court conclusion", guild=discord.Object(id=guild_id))
 @commands.has_any_role('法官')
 async def punish(interaction: discord.Interaction, user_to_ban: discord.Member, time_to_ban: int):
     # If this user and the judge are in the case, the judge will have the right to ban the member
     # Or this will be automatically done by the bot
     pass
-'''
+
 @bot.tree.command(name="timeout", description="", guild=discord.Object(id=guild_id))
 @commands.has_permissions()
 @commands.has_any_role('')
@@ -159,7 +176,7 @@ async def timeout(interaction: discord.Interaction, user_to_ban: discord.Member)
 ######## UI raising command ########
 @bot.tree.command(name="callbot", description="Raise Bot UI", guild=discord.Object(id=guild_id))
 async def callbotUI(interaction: discord.Interaction):
-    await interaction.response.send_message(content=f"Please choose the action you want to take by pressing one of the button below:", view=UIControlPanel(interaction.user), ephemeral=True)
+    await interaction.response.send_message(content=f"Please choose the action you want to take by pressing one of the button below:", view=UIControlPanel(interaction.user, interaction.channel), ephemeral=True)
 
 @bot.tree.command()
 @commands.has_any_role('')
@@ -179,6 +196,17 @@ async def answer(interaction: discord.Interaction, difficulty: str):
         await interaction.response.send_message(ephemeral=True, view=UINewUserQuestions(difenum))
     else:
         await interaction.response.send_message(ephemeral=True, content="Please enter the proper difficulty setting!")
+
+'''
+@bot.tree.context_menu(name="Report this message", guild=discord.Object(id=guild_id))
+async def raise_court(interaction: discord.Interaction, message: discord.Message):
+    if interaction.user == message.author:
+        await interaction.response.send_message("You cannot report yourself!", ephemeral=True)
+    elif message.author.bot:
+        await interaction.response.send_message("You cannot report a bot!", ephemeral=True)
+    else:
+        await interaction.response.send_message(content="The court is raised. Please check the court forum.", ephemeral=True)
+'''
 
 if __name__ == "__main__":
     bot.run(TOKEN)
