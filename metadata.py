@@ -1,4 +1,5 @@
-from typing import Dict, List
+from typing import Dict, List, Union
+import datetime
 
 ROLE_ID_LIST: Dict[str, int] = {
     "Admin":        0,
@@ -49,3 +50,11 @@ CHANNEL_ID_LIST: Dict[str, int] = {
     "Election":     0,
     "Publish":      0
 }
+
+'''
+[
+{"id": discord.Member.id, "datetime": datetime.datetime.now(datetime.timezone.utc)},
+...
+]
+'''
+UPDATE_ROLE_TIME_LIST: List[Dict[str, Union[int, datetime.datetime]]] = []

@@ -4,11 +4,11 @@ import datetime
 from uuid import uuid4
 import os
 import sys
-from typing import Optional
+from typing import Optional, List, Dict, Union
 
 #from db import DB
 from user_interface import UIRaiseElection, UINewUserQuestions, UIControlPanel
-from metadata import ROLE_ID_LIST, CHANNEL_ID_LIST, ROLE_ROLE_LIST
+from metadata import ROLE_ID_LIST, CHANNEL_ID_LIST, ROLE_ROLE_LIST, UPDATE_ROLE_TIME_LIST
 
 from db_model import db
 
@@ -48,7 +48,6 @@ https://stackoverflow.com/questions/71165431/how-do-i-make-a-working-slash-comma
 bot: discord.ext.commands.Bot = commands.Bot(command_prefix='d!', intents=discord.Intents.all(), help_command=None, case_insensitive=True)
 
 guild_id: int = 1156709757625835681
-
 
 # db = None
 
@@ -90,12 +89,23 @@ async def on_member_remove(member: discord.Member):
     # Randomly select another member if the quit member is in a case
     pass
 
-'''
 @bot.event
-async def on_member_update(member: discord.Member):
+async def on_member_update(before: discord.Member, after: discord.Member):
     # When the role / nickname etc changed
-    pass
+    def determine_electorate_role(member: discord.Member) -> Optional[discord.Role]:
+        roles: List[discord.Role] = member.roles
+        electorates: List[int] = [ROLE_ID_LIST[j] for j in ROLE_ROLE_LIST['Electorate']]
+        electorate: discord.Role = [i for i in electorates if after.guild.get_role(i) in roles]
+        if len(electorate) == 0:
+            return None
+        else:
+            return electorate
+    if determine_electorate_role(before) != determine_electorate_role(after):
+        UPDATE_ROLE_TIME_LIST.append(
+            {"id": after.id, "datetime": datetime.datetime.now(datetime.timezone.utc)}
+        )
 
+'''
 @bot.event
 async def on_message(message: discord.Message):
     message_author = message.author
@@ -105,7 +115,6 @@ async def on_message(message: discord.Message):
 '''
 
 @bot.command(name="getguildid")
-@commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
 async def getguildid(ctx: discord.ext.commands.Context):
     if discord.utils.get(ctx.guild.roles, name="服务器机器人开发") not in ctx.author.roles:
@@ -118,7 +127,6 @@ async def getguildid(ctx: discord.ext.commands.Context):
     await ctx.send(content=f"The Guild ID for {ctx.guild.name} has been set!", ephemeral=True)
 
 @bot.tree.command(name="setupchannel", description="Setup current channel for specific usage", guild=discord.Object(id=guild_id))
-@commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
 async def setupchannel(interaction: discord.Interaction, channel_select: str):
     if discord.utils.get(interaction.guild.roles, name="服务器机器人开发") not in interaction.user.roles:
@@ -143,7 +151,6 @@ async def setupchannel(interaction: discord.Interaction, channel_select: str):
         await interaction.response.send_message(content=f"ERROR: The channel ID for {channel_select} update failed!", ephemeral=True)
 
 @bot.tree.command(name="setuprole", description="Setup a specific role for specific usage", guild=discord.Object(id=guild_id))
-@commands.has_permissions(administrator=True)
 @commands.has_any_role('服务器机器人开发')
 async def setuprole(interaction: discord.Interaction, role_select: str, role: discord.Role):
     if discord.utils.get(interaction.guild.roles, name="服务器机器人开发") not in interaction.user.roles:

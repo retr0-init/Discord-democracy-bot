@@ -24,9 +24,18 @@ from metadata import ROLE_ID_LIST, CHANNEL_ID_LIST, ROLE_ROLE_LIST
 - [x] Think about the Button implementation for the UIVoting class
 - [x] Finish the Result Embed generation method
 - [ ] Finish the invite question pass determination method 
-- [ ] Automatically give role based on vote result and vote raise
-- [ ] Replace the technical admin position to propaganda admin
+- [x] Automatically give role based on vote result and vote raise
+- [x] Replace the technical admin position to propaganda admin
+- [ ] Voting for the Guild officer should be one vote per electorate
 '''
+
+voting_users: Dict[str, List[int]] = {
+    "Left": [],
+    "Right": [],
+    "Anarchy": [],
+    "Extreme": [],
+    "Mild": []
+}
 
 class UIRaiseElectionElectionAbstract(discord.ui.Modal):
 
@@ -142,7 +151,6 @@ class UIRaiseVoting(discord.ui.Modal, title="Raise a vote"):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message("好像有什麼出錯了!請確認輸入資訊.", ephemeral=True)
         traceback.print_exception(type(error), error, error.__traceback__)
-    pass
 
 class UIVotingButton(discord.ui.Button):
     def __init__(self, label: str, button_type: UIVotingButtonEnum, custom_id: str, vote_type: VoteTypeEnum, all_lists: Dict[str, List[Union[discord.user, discord.Member]]], row: Optional[int] = None, electorate: Optional[discord.Role] = None):
@@ -171,19 +179,47 @@ class UIVotingButton(discord.ui.Button):
         vote_type: VoteTypeEnum = view.vote_type
         user: Union[discord.User, discord.Member] = interaction.user
         list_bool: List[bool] = [user in x for x in self.all_user_lists.values()]
-        print(vote_type, user, list_bool)
+        electorate_str: str = list(ROLE_ID_LIST.keys())[list(ROLE_ID_LIST.values()).index(self.electorate.id)]
+        vote_invalid: bool = False
+        message_to_send: str = ""
+        message_valid: str = ""
+        message_type: str = ""
+        duplicate: bool = False
+        await self.customCallback(interaction)
+        if user.id in voting_users[electorate_str]:
+            print("You have voted for one of the nominators of this electorate.")
+            vote_invalid = True
+            message_valid = "You have voted for one of the nominators of this electorate."
+            # await interaction.response.send_message(content="You have voted for one of the nominators of this electorate.", ephemeral=True)
+        else:
+            voting_users[electorate_str].append(user.id)
+        print(vote_type, user, list_bool, self.all_user_lists)
         if not any(list_bool):
             match vote_type:
-                case VoteTypeEnum.ElectionAdmin | VoteTypeEnum.ElectionJudge | VoteTypeEnum.ElectionPropaganda | VoteTypeEnum.ElectionWardenry:
+                case VoteTypeEnum.ElectionJudge:
                     if self.electorate in user.roles:
-                        self.users.append(user)
-                        await interaction.response.send_message(content=f"你投的票是{self.button_type.name}", ephemeral=True)
+                        if not vote_invalid:
+                            self.users.append(user)
+                        message_type = f"你投的票是{self.button_type.name}"
+                        # await interaction.response.send_message(content=f"你投的票是{self.button_type.name}", ephemeral=True)
                     else:
-                        await interaction.response.send_message(content=f"You do not belong to this electorate.", ephemeral=True)
+                        message_type = f"You do not belong to this electorate."
+                        # await interaction.response.send_message(content=f"You do not belong to this electorate.", ephemeral=True)
+                case _:
+                    if not vote_invalid:
+                        self.users.append(user)
+                    message_type = f"你投的票是{self.button_type.name}"
+                    # await interaction.response.send_message(content=f"你投的票是{self.button_type.name}", ephemeral=True)
         else:
-            await interaction.response.send_message(content=f"你已經投過{list(self.all_user_lists.keys())[list_bool.index(True)]}!", ephemeral=True)
+            duplicate = True
+            message_type = f"你已經投過{list(self.all_user_lists.keys())[list_bool.index(True)]}!"
+            # await interaction.response.send_message(content=f"你已經投過{list(self.all_user_lists.keys())[list_bool.index(True)]}!", ephemeral=True)
+        if not vote_invalid or duplicate:
+            message_to_send = message_type
+        else:
+            message_to_send = message_valid
+        await interaction.response.send_message(content=message_to_send, ephemeral=True)
         # TODO check user permission with the database check
-        await self.customCallback(interaction)
 
     async def customCallback(self, interaction: discord.Interaction):
         pass
@@ -254,7 +290,7 @@ class UIVoting(discord.ui.View):
                 if self.determine_vote_pass():
                     given_role: discord.Role = self.message.guild.get_role(ROLE_ID_LIST["Judge"])
                     await self.author.add_roles(given_role, reason = "Election completed. Judge role added to {}.".format(self.author.display_name))
-                name: str = f"{self.author.display_name} is {'' if self.determine_vote_pass() else 'NOT '}elected as Judge."
+                name: str = f"{self.author.display_name} is {'' if self.determine_vote_pass() else 'NOT '}elected as Judge in {list(ROLE_ID_LIST.keys())[list(ROLE_ID_LIST.values()).index(self.author_electorate.id)]} electorate"
                 content: str = f"投票率：{influence_ratio}\nJudge Election completes. The result is:"
                 embed: discord.Embed = discord.Embed(
                     description = f"# 結果: {self.author.mention} {'沒有被 ' if not self.determine_vote_pass() else ''}選為法官.\n## 同意: {len(self.agree)}\n## 不同意: {len(self.against)}\n## 棄票: {len(self.waiver)}",
@@ -366,19 +402,19 @@ class UIVoting(discord.ui.View):
             case VoteTypeEnum.ElectionJudge:
                 author = "Judge Election"
                 colour = discord.Colour.from_str("#0066CC")
-                title = f"{vote_author.display_name} Judge Election @{vote_author.mention}"
+                title = f"{vote_author.display_name} Judge Election {vote_author.mention}"
             case VoteTypeEnum.ElectionAdmin:
                 author = "Admin Election"
                 colour = discord.Colour.from_str("#6600CC")
-                title = f"{vote_author.display_name} Admin Election @{vote_author.mention}"
+                title = f"{vote_author.display_name} Admin Election {vote_author.mention}"
             case VoteTypeEnum.ElectionWardenry:
                 author = "Wardenry Election"
                 colour = discord.Colour.from_str("#606060")
-                title = f"{vote_author.display_name} Wardenry Election @{vote_author.mention}"
+                title = f"{vote_author.display_name} Wardenry Election {vote_author.mention}"
             case VoteTypeEnum.ElectionPropaganda:
                 author = "Propaganda Election"
                 colour = discord.Colour.from_str("#66CC00")
-                title = f"{vote_author.display_name} Propaganda Election @{vote_author.mention}"
+                title = f"{vote_author.display_name} Propaganda Election {vote_author.mention}"
             case VoteTypeEnum.Impeachment:
                 if member_against is None:
                     print("The member to against is not provided!")
