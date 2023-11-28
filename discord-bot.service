@@ -1,0 +1,17 @@
+[Unit]
+Description = Discord Bot running 24/7
+After = network.target
+ 
+[Service]
+Type = forking
+ExecStart = /root/.nix-profile/bin/nix-shell /root/Discord-democracy-bot/run.sh
+KillMode=process
+User = root
+Group = root
+Restart = on-failure
+SyslogIdentifier = 2
+RestartSec = 5
+TimeoutStartSec = infinity
+ 
+[Install]
+WantedBy = multi-user.target
